@@ -1,0 +1,906 @@
+import { useState, useEffect } from "react";
+import { Search, Plus, Minus, Trash2, Calculator, CreditCard, Banknote, Clock, User, Star } from "lucide-react";
+import { ReceiptModal } from "./ReceiptModal";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+interface Service {
+  id: string;
+  name: string;
+  duration: number;
+  price: number;
+  category: string;
+}
+
+interface Member {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  points: number;
+  membershipLevel: 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
+}
+
+interface PaymentMethod {
+  type: 'cash' | 'card' | 'points';
+  amount: number;
+}
+
+interface CartItem extends Service {
+  quantity: number;
+  discount?: number;
+}
+
+interface PendingTransaction {
+  transactionId: string;
+  items: Array<{
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    duration: number;
+  }>;
+  subtotal: number;
+  discountPercent: number;
+  discountAmount: number;
+  tax: number;
+  tipAmount: number;
+  total: number;
+  clientName?: string;
+  cashierName: string;
+  date: Date;
+  notes?: string;
+}
+
+interface POSInterfaceProps {
+  editingTransaction?: PendingTransaction;
+  onTransactionSaved?: () => void;
+}
+
+const SERVICES: Service[] = [
+  { id: "1", name: "Full Body Reflexology", duration: 60, price: 80, category: "Reflexology" },
+  { id: "2", name: "Foot Reflexology", duration: 30, price: 45, category: "Reflexology" },
+  { id: "3", name: "Hand Reflexology", duration: 20, price: 30, category: "Reflexology" },
+  { id: "4", name: "Ear Reflexology", duration: 15, price: 25, category: "Reflexology" },
+  { id: "5", name: "Hot Stone Therapy", duration: 45, price: 65, category: "Therapy" },
+  { id: "6", name: "Aromatherapy Session", duration: 30, price: 40, category: "Therapy" },
+];
+
+interface Worker {
+  id: string;
+  name: string;
+  commission: number;
+  status: 'available' | 'busy' | 'break';
+  queuePosition: number;
+}
+
+const MOCK_MEMBERS: Member[] = [
+  { id: "1", name: "Alice Johnson", email: "alice@email.com", phone: "555-0101", points: 1250, membershipLevel: "Gold" },
+  { id: "2", name: "Bob Smith", email: "bob@email.com", phone: "555-0102", points: 580, membershipLevel: "Silver" },
+  { id: "3", name: "Carol Davis", email: "carol@email.com", phone: "555-0103", points: 2100, membershipLevel: "Platinum" },
+  { id: "4", name: "David Wilson", email: "david@email.com", phone: "555-0104", points: 320, membershipLevel: "Bronze" },
+  { id: "5", name: "Emma Brown", email: "emma@email.com", phone: "555-0105", points: 890, membershipLevel: "Silver" },
+];
+
+const MOCK_WORKERS: Worker[] = [
+  { id: "1", name: "Alice Chen", commission: 45, status: "available", queuePosition: 1 },
+  { id: "2", name: "Bob Martinez", commission: 50, status: "available", queuePosition: 2 },
+  { id: "3", name: "Carol Kim", commission: 40, status: "busy", queuePosition: 3 },
+  { id: "4", name: "David Park", commission: 48, status: "available", queuePosition: 4 },
+  { id: "5", name: "Emma Rodriguez", commission: 42, status: "break", queuePosition: 5 },
+];
+
+export default function POSInterface({ editingTransaction, onTransactionSaved }: POSInterfaceProps = {}) {
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [tipAmount, setTipAmount] = useState(0);
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [discountType, setDiscountType] = useState<'percent' | 'amount'>('percent');
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showPointsInput, setShowPointsInput] = useState(false);
+  const [pointsInputAmount, setPointsInputAmount] = useState('');
+  const [lastTransaction, setLastTransaction] = useState<any>(null);
+  const [clientName, setClientName] = useState("");
+  const [notes, setNotes] = useState("");
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [memberSearchTerm, setMemberSearchTerm] = useState("");
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [showMixedPayment, setShowMixedPayment] = useState(false);
+  const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
+  const [workerSearchTerm, setWorkerSearchTerm] = useState("");
+
+  const categories = ["all", ...Array.from(new Set(SERVICES.map(s => s.category)))];
+  
+  const filteredServices = SERVICES.filter(service => {
+    const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === "all" || service.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const filteredMembers = MOCK_MEMBERS.filter(member =>
+    member.name.toLowerCase().includes(memberSearchTerm.toLowerCase()) ||
+    member.phone.includes(memberSearchTerm) ||
+    member.email.toLowerCase().includes(memberSearchTerm.toLowerCase())
+  );
+
+  const filteredWorkers = MOCK_WORKERS.filter(worker =>
+    worker.name.toLowerCase().includes(workerSearchTerm.toLowerCase())
+  );
+
+  // Auto-assign next available worker in queue
+  const getNextAvailableWorker = () => {
+    const availableWorkers = MOCK_WORKERS
+      .filter(worker => worker.status === 'available')
+      .sort((a, b) => a.queuePosition - b.queuePosition);
+    return availableWorkers[0] || null;
+  };
+
+  // Initialize with next available worker if none selected
+  useEffect(() => {
+    if (!selectedWorker && cart.length > 0) {
+      const nextWorker = getNextAvailableWorker();
+      if (nextWorker) {
+        setSelectedWorker(nextWorker);
+      }
+    }
+  }, [cart.length, selectedWorker]);
+
+  const addToCart = (service: Service) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.id === service.id);
+      if (existing) {
+        return prev.map(item =>
+          item.id === service.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [...prev, { ...service, quantity: 1 }];
+    });
+  };
+
+  const updateQuantity = (id: string, quantity: number) => {
+    if (quantity <= 0) {
+      removeFromCart(id);
+      return;
+    }
+    setCart(prev =>
+      prev.map(item =>
+        item.id === id ? { ...item, quantity } : item
+      )
+    );
+  };
+
+  const removeFromCart = (id: string) => {
+    setCart(prev => prev.filter(item => item.id !== id));
+  };
+
+  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const finalDiscountAmount = discountType === 'percent' 
+    ? subtotal * (discountPercent / 100) 
+    : Math.min(discountAmount, subtotal);
+  const afterDiscount = subtotal - finalDiscountAmount;
+  const tax = afterDiscount * 0.1; // 10% tax
+  const total = afterDiscount + tax + tipAmount;
+
+  const pointsValue = 0.01; // $0.01 per point
+  const maxPointsUsable = selectedMember ? Math.min(selectedMember.points, Math.floor(total * 100)) : 0;
+  const totalPaymentMethods = paymentMethods.reduce((sum, method) => sum + method.amount, 0);
+  const remainingBalance = total - totalPaymentMethods;
+
+  // Load editing transaction if provided
+  useEffect(() => {
+    if (editingTransaction) {
+      const cartItems: CartItem[] = editingTransaction.items.map(item => ({
+        ...item,
+        category: SERVICES.find(s => s.id === item.id)?.category || "Other",
+        quantity: item.quantity
+      }));
+      setCart(cartItems);
+      setTipAmount(editingTransaction.tipAmount);
+      setDiscountPercent(editingTransaction.discountPercent);
+      setClientName(editingTransaction.clientName || "");
+      setNotes(editingTransaction.notes || "");
+    }
+  }, [editingTransaction]);
+
+  const clearCart = () => {
+    setCart([]);
+      setTipAmount(0);
+      setDiscountPercent(0);
+      setDiscountAmount(0);
+      setDiscountType('percent');
+      setClientName("");
+    setNotes("");
+    setSelectedMember(null);
+    setMemberSearchTerm("");
+    setPaymentMethods([]);
+    setShowMixedPayment(false);
+    setSelectedWorker(null);
+    setWorkerSearchTerm("");
+    onTransactionSaved?.();
+  };
+
+  const savePendingTransaction = () => {
+    const transactionId = editingTransaction?.transactionId || `PND-${Date.now()}`;
+    const pendingTransaction: PendingTransaction = {
+      transactionId,
+      items: cart.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        duration: item.duration
+      })),
+      subtotal,
+      discountPercent,
+      discountAmount: finalDiscountAmount,
+      tax,
+      tipAmount,
+      total,
+      clientName: clientName || undefined,
+      cashierName: "John Doe", // This would come from auth context
+      date: editingTransaction?.date || new Date(),
+      notes: notes || undefined
+    };
+
+    // In real app, this would save to backend
+    console.log('Saving pending transaction:', pendingTransaction);
+    clearCart();
+  };
+
+  const completeTransaction = (paymentMethod: 'cash' | 'card' | 'points' | 'mixed') => {
+    const transactionId = `TXN-${Date.now()}`;
+    
+    let finalPaymentMethods = paymentMethods;
+    if (paymentMethod !== 'mixed') {
+      if (paymentMethod === 'points') {
+        const pointsNeeded = Math.floor(total * 100);
+        finalPaymentMethods = [{ type: 'points', amount: total }];
+        // Deduct points from member (in real app, this would update the database)
+        if (selectedMember) {
+          selectedMember.points -= pointsNeeded;
+        }
+      } else {
+        finalPaymentMethods = [{ type: paymentMethod, amount: total }];
+      }
+    } else {
+      // For mixed payments, deduct points if used
+      const pointsPayment = paymentMethods.find(p => p.type === 'points');
+      if (pointsPayment && selectedMember) {
+        const pointsUsed = Math.floor(pointsPayment.amount * 100);
+        selectedMember.points -= pointsUsed;
+      }
+    }
+
+    // Calculate worker commission
+    const workerCommission = selectedWorker ? (total * (selectedWorker.commission / 100)) : 0;
+
+    const transactionData = {
+      transactionId,
+      items: cart.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        duration: item.duration
+      })),
+      subtotal,
+      discountPercent,
+      discountAmount: finalDiscountAmount,
+      tax,
+      tipAmount,
+      total,
+      paymentMethod,
+      paymentMethods: finalPaymentMethods,
+      memberId: selectedMember?.id,
+      memberName: selectedMember?.name,
+      workerId: selectedWorker?.id,
+      workerName: selectedWorker?.name,
+      workerCommission: selectedWorker?.commission,
+      workerCommissionAmount: workerCommission,
+      cashierName: "John Doe", // This would come from auth context
+      clientName: clientName || undefined,
+      date: new Date()
+    };
+
+    setLastTransaction(transactionData);
+    setShowReceiptModal(true);
+    clearCart();
+  };
+
+  return (
+    <div className="grid grid-cols-12 gap-6 h-[calc(100vh-8rem)]">
+      {/* Services Panel */}
+      <div className="col-span-7">
+        <Card className="h-full">
+          <CardHeader>
+            <div className="flex items-center gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Search services..."
+                  className="pl-10"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map(category => (
+                    <SelectItem key={category} value={category}>
+                      {category === "all" ? "All Categories" : category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="grid grid-cols-2 gap-3 overflow-auto max-h-[calc(100vh-16rem)]">
+              {filteredServices.map(service => (
+                <Card
+                  key={service.id}
+                  className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-primary/20"
+                  onClick={() => addToCart(service)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-medium text-sm leading-tight">{service.name}</h3>
+                      <Badge variant="secondary" className="ml-2">
+                        {service.duration}min
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-bold text-primary">${service.price}</span>
+                      <Badge variant="outline">{service.category}</Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Cart & Checkout Panel */}
+      <div className="col-span-5">
+        <Card className="h-full flex flex-col">
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle>Current Transaction</CardTitle>
+              <Button variant="ghost" size="sm" onClick={clearCart}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          
+          <CardContent className="flex-1 flex flex-col">
+            {/* Cart Items */}
+            <div className="flex-1 overflow-auto mb-4">
+              {cart.length === 0 ? (
+                <div className="flex items-center justify-center h-32 text-muted-foreground">
+                  <p>No items in cart</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {cart.map(item => (
+                    <div key={item.id} className="flex items-center gap-2 p-2 bg-secondary/50 rounded">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{item.name}</p>
+                        <p className="text-xs text-muted-foreground">${item.price} × {item.quantity}</p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="w-8 text-center text-sm">{item.quantity}</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeFromCart(item.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium">${(item.price * item.quantity).toFixed(2)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Calculations */}
+            {cart.length > 0 && (
+              <>
+                <Separator className="my-4" />
+                
+                {/* Discount & Tip */}
+                <div className="space-y-2 mb-4">
+                  <div className="flex gap-2">
+                    <div className="flex flex-1">
+                      <Input
+                        type="number"
+                        placeholder={discountType === 'percent' ? "Discount %" : "Discount $"}
+                        value={discountType === 'percent' ? (discountPercent || "") : (discountAmount || "")}
+                        onChange={(e) => {
+                          const value = Number(e.target.value) || 0;
+                          if (discountType === 'percent') {
+                            setDiscountPercent(value);
+                          } else {
+                            setDiscountAmount(value);
+                          }
+                        }}
+                        className="rounded-r-none"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-l-none border-l-0 px-3"
+                        onClick={() => {
+                          setDiscountType(discountType === 'percent' ? 'amount' : 'percent');
+                          setDiscountPercent(0);
+                          setDiscountAmount(0);
+                        }}
+                      >
+                        {discountType === 'percent' ? '%' : '$'}
+                      </Button>
+                    </div>
+                    <Input
+                      type="number"
+                      placeholder="Tip $"
+                      value={tipAmount || ""}
+                      onChange={(e) => setTipAmount(Number(e.target.value) || 0)}
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+
+                {/* Totals */}
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>${subtotal.toFixed(2)}</span>
+                  </div>
+                  {(discountPercent > 0 || discountAmount > 0) && (
+                    <div className="flex justify-between text-destructive">
+                      <span>Discount {discountType === 'percent' ? `(${discountPercent}%)` : ''}:</span>
+                      <span>-${finalDiscountAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span>Tax (10%):</span>
+                    <span>${tax.toFixed(2)}</span>
+                  </div>
+                  {tipAmount > 0 && (
+                    <div className="flex justify-between">
+                      <span>Tip:</span>
+                      <span>${tipAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <Separator />
+                  <div className="flex justify-between font-bold text-lg">
+                    <span>Total:</span>
+                    <span className="text-primary">${total.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Payment Buttons */}
+                {!showMixedPayment ? (
+                  <div className="space-y-2 mt-4">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button 
+                        variant="outline" 
+                        className="h-12"
+                        onClick={() => completeTransaction('cash')}
+                      >
+                        <Banknote className="h-4 w-4 mr-2" />
+                        Cash
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="h-12"
+                        onClick={() => completeTransaction('card')}
+                      >
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        Card
+                      </Button>
+                    </div>
+                    {selectedMember && (
+                      <Button 
+                        variant="outline" 
+                        className="h-12 w-full"
+                        onClick={() => completeTransaction('points')}
+                        disabled={maxPointsUsable < total * 100}
+                      >
+                        <Star className="h-4 w-4 mr-2" />
+                        Pay with Points ({Math.floor(total * 100)} pts needed)
+                      </Button>
+                    )}
+                    <Button 
+                      variant="ghost" 
+                      className="h-10 w-full"
+                      onClick={() => setShowMixedPayment(true)}
+                    >
+                      Mixed Payment Options
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-medium">Mixed Payment</h4>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => {
+                          setShowMixedPayment(false);
+                          setPaymentMethods([]);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                    
+                    {/* Payment Methods */}
+                    <div className="space-y-2">
+                      {paymentMethods.map((method, index) => (
+                        <div key={index} className="flex items-center gap-2 p-2 bg-secondary/50 rounded">
+                          <span className="capitalize text-sm font-medium min-w-0">
+                            {method.type === 'points' ? (
+                              <><Star className="inline h-3 w-3 mr-1" />Points</>
+                            ) : method.type === 'cash' ? (
+                              <><Banknote className="inline h-3 w-3 mr-1" />Cash</>
+                            ) : (
+                              <><CreditCard className="inline h-3 w-3 mr-1" />Card</>
+                            )}
+                          </span>
+                          <span className="text-sm">${method.amount.toFixed(2)}</span>
+                          {method.type === 'points' && (
+                            <span className="text-xs text-muted-foreground">
+                              ({Math.floor(method.amount * 100)} pts)
+                            </span>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setPaymentMethods(prev => prev.filter((_, i) => i !== index));
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Add Payment Method Buttons */}
+                    {remainingBalance > 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const amount = Math.min(remainingBalance, remainingBalance);
+                            setPaymentMethods(prev => [...prev, { type: 'cash', amount }]);
+                          }}
+                        >
+                          <Banknote className="h-3 w-3 mr-1" />
+                          Cash
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const amount = Math.min(remainingBalance, remainingBalance);
+                            setPaymentMethods(prev => [...prev, { type: 'card', amount }]);
+                          }}
+                        >
+                          <CreditCard className="h-3 w-3 mr-1" />
+                          Card
+                        </Button>
+                        {selectedMember && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={maxPointsUsable === 0}
+                            onClick={() => setShowPointsInput(true)}
+                          >
+                            <Star className="h-3 w-3 mr-1" />
+                            Points
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Payment Summary */}
+                    <div className="text-sm space-y-1 p-2 bg-muted/50 rounded">
+                      <div className="flex justify-between">
+                        <span>Total:</span>
+                        <span>${total.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Paid:</span>
+                        <span>${totalPaymentMethods.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between font-medium">
+                        <span>Remaining:</span>
+                        <span className={remainingBalance > 0 ? "text-destructive" : "text-primary"}>
+                          ${remainingBalance.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Member Points Input Dialog */}
+                    {showPointsInput && selectedMember && (
+                      <div className="p-3 bg-muted/50 rounded border">
+                        <div className="flex justify-between items-center mb-2">
+                          <h5 className="font-medium">Use Member Points</h5>
+                          <Button size="sm" variant="ghost" onClick={() => setShowPointsInput(false)}>
+                            ×
+                          </Button>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-xs text-muted-foreground">
+                            Available: {selectedMember.points} points (${(selectedMember.points * pointsValue).toFixed(2)})
+                          </div>
+                          <div className="flex gap-2">
+                            <Input
+                              type="number"
+                              placeholder="Enter amount ($)"
+                              value={pointsInputAmount}
+                              onChange={(e) => setPointsInputAmount(e.target.value)}
+                              max={Math.min(remainingBalance, selectedMember.points * pointsValue)}
+                              step="0.01"
+                            />
+                            <Button 
+                              size="sm"
+                              onClick={() => {
+                                const amount = Math.min(
+                                  Number(pointsInputAmount) || 0,
+                                  remainingBalance,
+                                  selectedMember.points * pointsValue
+                                );
+                                if (amount > 0) {
+                                  setPaymentMethods(prev => [...prev, { type: 'points', amount }]);
+                                  setPointsInputAmount('');
+                                  setShowPointsInput(false);
+                                }
+                              }}
+                            >
+                              Add
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Complete Mixed Payment */}
+                    {Math.abs(remainingBalance) < 0.01 && (
+                      <Button 
+                        className="h-12 w-full"
+                        onClick={() => completeTransaction('mixed')}
+                      >
+                        <Calculator className="h-4 w-4 mr-2" />
+                        Complete Mixed Payment
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {/* Worker Assignment */}
+                <div className="mt-4 space-y-2">
+                  <h4 className="font-medium text-sm">Assigned Worker</h4>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Input
+                      placeholder="Search worker or auto-assign"
+                      value={workerSearchTerm}
+                      onChange={(e) => setWorkerSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  
+                  {workerSearchTerm && filteredWorkers.length > 0 && (
+                    <div className="max-h-32 overflow-auto border rounded-md">
+                      {filteredWorkers.map(worker => (
+                        <div
+                          key={worker.id}
+                          className="p-2 hover:bg-secondary cursor-pointer border-b last:border-b-0"
+                          onClick={() => {
+                            setSelectedWorker(worker);
+                            setWorkerSearchTerm("");
+                          }}
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="font-medium text-sm">{worker.name}</p>
+                              <p className="text-xs text-muted-foreground">Commission: {worker.commission}%</p>
+                            </div>
+                            <div className="text-right">
+                              <Badge 
+                                variant={worker.status === 'available' ? 'secondary' : 
+                                        worker.status === 'busy' ? 'destructive' : 'outline'}
+                              >
+                                {worker.status}
+                              </Badge>
+                              <p className="text-xs text-muted-foreground">Queue: #{worker.queuePosition}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {selectedWorker && (
+                    <div className="p-3 bg-primary/5 rounded-md border">
+                      <div className="flex justify-between items-center mb-2">
+                        <div>
+                          <p className="font-medium">{selectedWorker.name}</p>
+                          <Badge variant="secondary">{selectedWorker.commission}% Commission</Badge>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedWorker(getNextAvailableWorker());
+                          }}
+                        >
+                          Auto-Assign
+                        </Button>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Commission Amount:</span>
+                        <span className="font-medium text-primary">
+                          ${((total * (selectedWorker.commission / 100)) || 0).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Member Selection */}
+                <div className="mt-4 space-y-2">
+                  <h4 className="font-medium text-sm">Member (Optional)</h4>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Input
+                      placeholder="Search member (name, phone, email)"
+                      value={memberSearchTerm}
+                      onChange={(e) => setMemberSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  
+                  {memberSearchTerm && filteredMembers.length > 0 && (
+                    <div className="max-h-32 overflow-auto border rounded-md">
+                      {filteredMembers.map(member => (
+                        <div
+                          key={member.id}
+                          className="p-2 hover:bg-secondary cursor-pointer border-b last:border-b-0"
+                          onClick={() => {
+                            setSelectedMember(member);
+                            setMemberSearchTerm("");
+                            setClientName(member.name);
+                          }}
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="font-medium text-sm">{member.name}</p>
+                              <p className="text-xs text-muted-foreground">{member.phone}</p>
+                            </div>
+                            <div className="text-right">
+                              <Badge variant="outline" className="mb-1">
+                                {member.membershipLevel}
+                              </Badge>
+                              <p className="text-xs">
+                                <Star className="inline h-3 w-3 mr-1" />
+                                {member.points} pts
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {selectedMember && (
+                    <div className="p-3 bg-primary/5 rounded-md border">
+                      <div className="flex justify-between items-center mb-2">
+                        <div>
+                          <p className="font-medium">{selectedMember.name}</p>
+                          <Badge variant="secondary">{selectedMember.membershipLevel}</Badge>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedMember(null);
+                            setClientName("");
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Available Points:</span>
+                        <span className="font-medium text-primary">
+                          <Star className="inline h-3 w-3 mr-1" />
+                          {selectedMember.points} pts (${(selectedMember.points * pointsValue).toFixed(2)})
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Client Name Input */}
+                <div className="mt-4">
+                  <Input
+                    placeholder="Client name (optional)"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    className="mb-2"
+                  />
+                  <Input
+                    placeholder="Notes (optional)"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                  />
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 gap-2 mt-4">
+                  <Button 
+                    variant="outline" 
+                    className="h-12"
+                    onClick={savePendingTransaction}
+                  >
+                    <Clock className="h-4 w-4 mr-2" />
+                    Save Pending
+                  </Button>
+                  <Button 
+                    className="h-12" 
+                    onClick={() => completeTransaction('cash')}
+                  >
+                    <Calculator className="h-4 w-4 mr-2" />
+                    Complete
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Receipt Modal */}
+      {showReceiptModal && lastTransaction && (
+        <ReceiptModal
+          isOpen={showReceiptModal}
+          onClose={() => setShowReceiptModal(false)}
+          transactionData={lastTransaction}
+        />
+      )}
+    </div>
+  );
+}
