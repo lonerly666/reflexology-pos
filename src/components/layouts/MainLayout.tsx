@@ -65,7 +65,7 @@ export default function MainLayout({
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
-      <div className={`bg-card border-r border-border transition-all duration-300 ${
+      <div className={`relative bg-card border-r border-border transition-all duration-300 ${
         sidebarCollapsed ? 'w-16' : 'w-64'
       }`}>
         <div className="p-4 border-b border-border">
@@ -129,8 +129,8 @@ export default function MainLayout({
         </nav>
 
         {/* Logout Button */}
-        <div className="absolute bottom-4 left-2 right-2">
-          <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive">
+        <div className="absolute bottom-4 left-3 w-[90%]">
+          <Button variant="ghost" className="w-[100%] justify-start text-destructive hover:text-destructive">
             <LogOut className="h-5 w-5" />
             {!sidebarCollapsed && <span className="ml-3">Logout</span>}
           </Button>
