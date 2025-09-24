@@ -43,7 +43,7 @@ interface Member {
 }
 
 interface PaymentMethod {
-  type: 'cash' | 'card' | 'points';
+  type: 'cash' | 'card' | 'points' | 'mixed';
   amount: number;
 }
 
@@ -361,12 +361,11 @@ export default function POSInterface({
     setShowMixedPayment(false);
     setSelectedWorker(null);
     setWorkerSearchTerm('');
-    onTransactionSaved?.();
   };
 
   const savePendingTransaction = () => {
     const transactionId =
-      editingTransaction?.transactionId || `PND-${Date.now()}`;
+      editingTransaction?.transactionId || `PND-${Date.now()}`; //TODO: id needs to be updated later to match requirement
     const pendingTransaction: PendingTransaction = {
       transactionId,
       items: cart.map((item) => ({
@@ -388,7 +387,7 @@ export default function POSInterface({
       notes: notes || undefined,
     };
 
-    // In real app, this would save to backend
+    //TODO: Put into pending transaction DB (to prevent data loss in the case of electric cutoff), all pending transaction will need to be completed EOD
     console.log('Saving pending transaction:', pendingTransaction);
     clearCart();
   };
@@ -396,12 +395,12 @@ export default function POSInterface({
   const completeTransaction = (
     paymentMethod: 'cash' | 'card' | 'points' | 'mixed',
   ) => {
-    const transactionId = `TXN-${Date.now()}`;
+    const transactionId = `TXN-${Date.now()}`; //TODO: id needs to be updated later to match requirement
 
     let finalPaymentMethods = paymentMethods;
     if (paymentMethod !== 'mixed') {
       if (paymentMethod === 'points') {
-        const pointsNeeded = Math.floor(total * 100);
+        const pointsNeeded = total;
         finalPaymentMethods = [{ type: 'points', amount: total }];
         // Deduct points from member (in real app, this would update the database)
         if (selectedMember) {
@@ -451,7 +450,7 @@ export default function POSInterface({
       clientName: clientName || undefined,
       date: new Date(),
     };
-
+    console.log(transactionData);
     setLastTransaction(transactionData);
     setShowReceiptModal(true);
     clearCart();
@@ -630,7 +629,7 @@ export default function POSInterface({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-l-none border-l-0 px-3"
+                        className="h-10 rounded-l-none border-l-0 px-3"
                         onClick={() => {
                           setDiscountType(
                             discountType === 'percent' ? 'amount' : 'percent',
@@ -694,17 +693,37 @@ export default function POSInterface({
                   <div className="space-y-2 mt-4">
                     <div className="grid grid-cols-2 gap-2">
                       <Button
-                        variant="outline"
-                        className="h-12"
-                        onClick={() => completeTransaction('cash')}
+                        variant={
+                          paymentMethods.length > 0 &&
+                          paymentMethods[0].type === 'cash'
+                            ? 'active'
+                            : 'outline'
+                        }
+                        className={`h-12`}
+                        onClick={() => {
+                          setPaymentMethods([]);
+                          setPaymentMethods((prev) => {
+                            return [...prev, { type: 'cash', amount: total }];
+                          });
+                        }}
                       >
                         <Banknote className="h-4 w-4 mr-2" />
                         Cash
                       </Button>
                       <Button
-                        variant="outline"
-                        className="h-12"
-                        onClick={() => completeTransaction('card')}
+                        variant={
+                          paymentMethods.length > 0 &&
+                          paymentMethods[0].type === 'card'
+                            ? 'active'
+                            : 'outline'
+                        }
+                        className={`h-12`}
+                        onClick={() => {
+                          setPaymentMethods([]);
+                          setPaymentMethods((prev) => {
+                            return [...prev, { type: 'card', amount: total }];
+                          });
+                        }}
                       >
                         <CreditCard className="h-4 w-4 mr-2" />
                         Card
@@ -712,18 +731,28 @@ export default function POSInterface({
                     </div>
                     {selectedMember && (
                       <Button
-                        variant="outline"
+                        variant={
+                          paymentMethods.length > 0 &&
+                          paymentMethods[0].type === 'points'
+                            ? 'active'
+                            : 'outline'
+                        }
                         className="h-12 w-full"
-                        onClick={() => completeTransaction('points')}
-                        disabled={maxPointsUsable < total * 100}
+                        onClick={() => {
+                          setPaymentMethods([]);
+                          setPaymentMethods((prev) => {
+                            return [...prev, { type: 'points', amount: total }];
+                          });
+                        }}
+                        disabled={maxPointsUsable < total}
                       >
                         <Star className="h-4 w-4 mr-2" />
-                        Pay with Points ({Math.floor(total * 100)} pts needed)
+                        Pay with Points {total} pts needed
                       </Button>
                     )}
                     <Button
                       variant="ghost"
-                      className="h-10 w-full"
+                      className={`h-10 w-full `}
                       onClick={() => setShowMixedPayment(true)}
                     >
                       Mixed Payment Options
@@ -775,7 +804,7 @@ export default function POSInterface({
                           </span>
                           {method.type === 'points' && (
                             <span className="text-xs text-muted-foreground">
-                              ({Math.floor(method.amount * 100)} pts)
+                              {method.amount} pts
                             </span>
                           )}
                           <Button
@@ -916,19 +945,30 @@ export default function POSInterface({
                                 )}
                                 className="flex-1"
                                 onChange={(e) => {
-                                  const amount = Number(e.target.value) || 0;
-                                  const maxPoints = Math.min(
-                                    remainingBalance,
-                                    selectedMember.points * pointsValue,
-                                  );
-                                  if (amount > 0 && amount <= maxPoints) {
+                                  let amount = Number(e.target.value) || 0;
+                                  if (amount > 0) {
+                                    amount =
+                                      amount >
+                                      selectedMember.points * pointsValue
+                                        ? selectedMember.points * pointsValue
+                                        : amount;
+                                    const currPoints =
+                                      paymentMethods.find(
+                                        (p) => p.type === 'points',
+                                      )?.amount || 0;
+                                    const maxAllowed =
+                                      remainingBalance + currPoints;
+                                    const finalAmount = Math.min(
+                                      amount,
+                                      maxAllowed,
+                                    );
                                     setPaymentMethods((prev) => {
                                       const filtered = prev.filter(
                                         (p) => p.type !== 'points',
                                       );
                                       return [
                                         ...filtered,
-                                        { type: 'points', amount },
+                                        { type: 'points', amount: finalAmount },
                                       ];
                                     });
                                   } else {
@@ -1008,17 +1048,6 @@ export default function POSInterface({
                         </span>
                       </div>
                     </div>
-
-                    {/* Complete Mixed Payment */}
-                    {Math.abs(remainingBalance) < 0.01 && (
-                      <Button
-                        className="h-12 w-full"
-                        onClick={() => completeTransaction('mixed')}
-                      >
-                        <Calculator className="h-4 w-4 mr-2" />
-                        Complete Mixed Payment
-                      </Button>
-                    )}
                   </div>
                 )}
 
@@ -1217,7 +1246,14 @@ export default function POSInterface({
                   </Button>
                   <Button
                     className="h-12"
-                    onClick={() => completeTransaction('cash')}
+                    onClick={() => {
+                      if (paymentMethods.length === 0) return;
+                      completeTransaction(
+                        paymentMethods.length > 1
+                          ? 'mixed'
+                          : paymentMethods[0].type,
+                      );
+                    }}
                   >
                     <Calculator className="h-4 w-4 mr-2" />
                     Complete

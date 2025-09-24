@@ -173,7 +173,7 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({
                 </span>
                 <span>
                   {payment.type === 'points' 
-                    ? `${Math.floor(payment.amount * 100)} pts (${formatCurrency(payment.amount)})`
+                    ? `${payment.amount} pts (${formatCurrency(payment.amount)})`
                     : formatCurrency(payment.amount)
                   }
                 </span>
@@ -191,7 +191,7 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({
             {paymentMethod === 'points' && (
               <div className="flex justify-between text-xs">
                 <span>Points Used:</span>
-                <span>{Math.floor(total * 100)} pts</span>
+                <span>{total} pts</span>
               </div>
             )}
           </div>

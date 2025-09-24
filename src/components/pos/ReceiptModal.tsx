@@ -133,12 +133,12 @@ export function ReceiptModal({ isOpen, onClose, transactionData }: ReceiptModalP
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
         <DialogHeader>
           <DialogTitle>Transaction Receipt</DialogTitle>
         </DialogHeader>
         
-        <div className="flex gap-4 h-full">
+        <div className="gap-4 h-full">
           {/* Receipt Preview */}
           <div className="flex-1 overflow-auto border rounded-lg p-4 bg-gray-50">
             <Receipt
