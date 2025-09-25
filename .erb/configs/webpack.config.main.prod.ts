@@ -35,6 +35,10 @@ const configuration: webpack.Configuration = {
     },
   },
 
+  externals:{
+    'better-sqlite3': 'commonjs better-sqlite3'
+  },
+
   optimization: {
     minimizer: [
       new TerserPlugin({

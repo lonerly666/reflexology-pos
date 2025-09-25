@@ -3,5 +3,4 @@ export interface Worker {
   name: string;
   commission: number;
   status: 'available' | 'busy' | 'break';
-  queuePosition: number;
 }

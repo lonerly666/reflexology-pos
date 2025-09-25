@@ -4,47 +4,16 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { User, DollarSign, TrendingUp, Clock, Star } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-
-interface Worker {
-  id: string;
-  name: string;
-  commission: number;
-  status: 'available' | 'busy' | 'break';
-  queuePosition: number;
-}
-
-interface WorkerPerformance {
-  workerId: string;
-  workerName: string;
-  totalEarnings: number;
-  totalTransactions: number;
-  averageTransaction: number;
-  hoursWorked: number;
-  rating: number;
-  monthlyEarnings: Array<{
-    month: string;
-    earnings: number;
-    transactions: number;
-  }>;
-  weeklyEarnings: Array<{
-    day: string;
-    earnings: number;
-    transactions: number;
-  }>;
-  serviceBreakdown: Array<{
-    service: string;
-    count: number;
-    earnings: number;
-  }>;
-}
+import {Worker} from "@/interfaces/Worker";
+import { WorkerPerformance } from "@/interfaces/WorkerPerformance";
 
 // Mock worker data
 const MOCK_WORKERS: Worker[] = [
-  { id: "1", name: "Alice Chen", commission: 45, status: "available", queuePosition: 1 },
-  { id: "2", name: "Bob Martinez", commission: 50, status: "available", queuePosition: 2 },
-  { id: "3", name: "Carol Kim", commission: 40, status: "busy", queuePosition: 3 },
-  { id: "4", name: "David Park", commission: 48, status: "available", queuePosition: 4 },
-  { id: "5", name: "Emma Rodriguez", commission: 42, status: "break", queuePosition: 5 },
+  { id: "1", name: "Alice Chen", commission: 45, status: "available" },
+  { id: "2", name: "Bob Martinez", commission: 50, status: "available"},
+  { id: "3", name: "Carol Kim", commission: 40, status: "busy" },
+  { id: "4", name: "David Park", commission: 48, status: "available"},
+  { id: "5", name: "Emma Rodriguez", commission: 42, status: "break"},
 ];
 
 // Mock performance data
