@@ -30,11 +30,11 @@ interface MainLayoutProps {
 
 export default function MainLayout({
   children,
-  currentUser = { name: "Sarah Johnson", role: "Cashier", initials: "SJ" },
+  currentUser = { name: "Sarah Johnson", role: "Admin", initials: "SJ" },
   activeSection = "pos",
   onSectionChange,
 }: MainLayoutProps) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
   const menuItems = [
     { id: "pos", label: "Point of Sale", icon: ShoppingCart, roles: ["Admin", "Manager", "Cashier"] },

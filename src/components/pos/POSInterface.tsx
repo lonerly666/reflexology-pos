@@ -25,57 +25,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-interface Service {
-  id: string;
-  name: string;
-  duration: number;
-  price: number;
-  category: string;
-}
-
-interface Member {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  points: number;
-  membershipLevel: 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
-}
-
-interface PaymentMethod {
-  type: 'cash' | 'card' | 'points' | 'mixed';
-  amount: number;
-}
+import { PaymentMethod } from '@/interfaces/PaymentMethod';
+import { Service } from '@/interfaces/Service';
+import { Member } from '@/interfaces/Member';
+import { PendingTransaction } from '@/interfaces/PendingTransaction';
+import { Worker } from '@/interfaces/Worker';
 
 interface CartItem extends Service {
   quantity: number;
   discount?: number;
 }
 
-interface PendingTransaction {
-  transactionId: string;
-  items: Array<{
-    id: string;
-    name: string;
-    price: number;
-    quantity: number;
-    duration: number;
-  }>;
-  subtotal: number;
-  discountPercent: number;
-  discountAmount: number;
-  tax: number;
-  tipAmount: number;
-  total: number;
-  clientName?: string;
-  cashierName: string;
-  date: Date;
-  notes?: string;
-}
-
 interface POSInterfaceProps {
   editingTransaction?: PendingTransaction;
-  onTransactionSaved?: () => void;
+  onTransactionSaved?: (data: any) => void;
 }
 
 const SERVICES: Service[] = [
@@ -122,14 +85,6 @@ const SERVICES: Service[] = [
     category: 'Therapy',
   },
 ];
-
-interface Worker {
-  id: string;
-  name: string;
-  commission: number;
-  status: 'available' | 'busy' | 'break';
-  queuePosition: number;
-}
 
 const MOCK_MEMBERS: Member[] = [
   {
@@ -226,8 +181,6 @@ export default function POSInterface({
     'percent',
   );
   const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [showPointsInput, setShowPointsInput] = useState(false);
-  const [pointsInputAmount, setPointsInputAmount] = useState('');
   const [lastTransaction, setLastTransaction] = useState<any>(null);
   const [clientName, setClientName] = useState('');
   const [notes, setNotes] = useState('');
@@ -263,24 +216,6 @@ export default function POSInterface({
     worker.name.toLowerCase().includes(workerSearchTerm.toLowerCase()),
   );
 
-  // Auto-assign next available worker in queue
-  const getNextAvailableWorker = () => {
-    const availableWorkers = MOCK_WORKERS.filter(
-      (worker) => worker.status === 'available',
-    ).sort((a, b) => a.queuePosition - b.queuePosition);
-    return availableWorkers[0] || null;
-  };
-
-  // Initialize with next available worker if none selected
-  useEffect(() => {
-    if (!selectedWorker && cart.length > 0) {
-      const nextWorker = getNextAvailableWorker();
-      if (nextWorker) {
-        setSelectedWorker(nextWorker);
-      }
-    }
-  }, [cart.length, selectedWorker]);
-
   const addToCart = (service: Service) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.id === service.id);
@@ -309,10 +244,12 @@ export default function POSInterface({
     setCart((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const AMOUNT_PER_SERVICE = 8; //amount of money taken by company per service
   let subtotal = cart.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0,
   );
+  let serviceCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   let finalDiscountAmount =
     discountType === 'percent'
       ? subtotal * (discountPercent / 100)
@@ -343,6 +280,9 @@ export default function POSInterface({
       setTipAmount(editingTransaction.tipAmount);
       setDiscountPercent(editingTransaction.discountPercent);
       setClientName(editingTransaction.clientName || '');
+      setSelectedWorker(
+        MOCK_WORKERS.find((w) => w.id === editingTransaction.workerId) || null,
+      );
       setNotes(editingTransaction.notes || '');
     }
   }, [editingTransaction]);
@@ -366,6 +306,7 @@ export default function POSInterface({
   const savePendingTransaction = () => {
     const transactionId =
       editingTransaction?.transactionId || `PND-${Date.now()}`; //TODO: id needs to be updated later to match requirement
+    const companyCut = serviceCount * AMOUNT_PER_SERVICE;
     const pendingTransaction: PendingTransaction = {
       transactionId,
       items: cart.map((item) => ({
@@ -382,13 +323,21 @@ export default function POSInterface({
       tipAmount,
       total,
       clientName: clientName || undefined,
+      companyTake: companyCut,
       cashierName: 'John Doe', // This would come from auth context
       date: editingTransaction?.date || new Date(),
       notes: notes || undefined,
+      workerId: selectedWorker?.id,
+      workerName: selectedWorker?.name,
+      workerCommission: selectedWorker?.commission,
+      workerCommissionAmount: selectedWorker
+        ? total * (selectedWorker.commission / 100) - companyCut
+        : 0,
     };
 
     //TODO: Put into pending transaction DB (to prevent data loss in the case of electric cutoff), all pending transaction will need to be completed EOD
-    console.log('Saving pending transaction:', pendingTransaction);
+    // console.log('Saving pending transaction:', pendingTransaction);
+    onTransactionSaved?.(pendingTransaction);
     clearCart();
   };
 
@@ -419,9 +368,11 @@ export default function POSInterface({
     }
 
     // Calculate worker commission
+    let serviceCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+    let companyCut = serviceCount * AMOUNT_PER_SERVICE;
     const workerCommission = selectedWorker
       ? total * (selectedWorker.commission / 100)
-      : 0;
+      : 0 - companyCut;
 
     const transactionData = {
       transactionId,
@@ -449,8 +400,8 @@ export default function POSInterface({
       cashierName: 'John Doe', // This would come from auth context
       clientName: clientName || undefined,
       date: new Date(),
+      companyTake: companyCut,
     };
-    console.log(transactionData);
     setLastTransaction(transactionData);
     setShowReceiptModal(true);
     clearCart();
@@ -657,7 +608,11 @@ export default function POSInterface({
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
-                    <span>${subtotal.toFixed(2)}</span>
+                    <span>RM {subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                      <span>Company's Take: </span>
+                      <span>RM {(serviceCount*AMOUNT_PER_SERVICE).toFixed(2)}</span>
                   </div>
                   {(discountPercent > 0 || discountAmount > 0) && (
                     <div className="flex justify-between text-destructive">
@@ -668,23 +623,23 @@ export default function POSInterface({
                           : ''}
                         :
                       </span>
-                      <span>-${finalDiscountAmount.toFixed(2)}</span>
+                      <span>-RM {finalDiscountAmount.toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
                     <span>Tax (10%):</span>
-                    <span>${tax.toFixed(2)}</span>
+                    <span>RM {tax.toFixed(2)}</span>
                   </div>
                   {tipAmount > 0 && (
                     <div className="flex justify-between">
                       <span>Tip:</span>
-                      <span>${tipAmount.toFixed(2)}</span>
+                      <span>RM {tipAmount.toFixed(2)}</span>
                     </div>
                   )}
                   <Separator />
                   <div className="flex justify-between font-bold text-lg">
                     <span>Total:</span>
-                    <span className="text-primary">${total.toFixed(2)}</span>
+                    <span className="text-primary">RM {total.toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -1053,11 +1008,11 @@ export default function POSInterface({
 
                 {/* Worker Assignment */}
                 <div className="mt-4 space-y-2">
-                  <h4 className="font-medium text-sm">Assigned Worker</h4>
+                  <h4 className="font-medium text-sm">Assign Worker</h4>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <Input
-                      placeholder="Search worker or auto-assign"
+                      placeholder="Search worker"
                       value={workerSearchTerm}
                       onChange={(e) => setWorkerSearchTerm(e.target.value)}
                       className="pl-10"
@@ -1115,22 +1070,18 @@ export default function POSInterface({
                             {selectedWorker.commission}% Commission
                           </Badge>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedWorker(getNextAvailableWorker());
-                          }}
-                        >
-                          Auto-Assign
-                        </Button>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span>Commission Amount:</span>
                         <span className="font-medium text-primary">
-                          $
+                          RM
                           {(
                             total * (selectedWorker.commission / 100) || 0
+                          ).toFixed(2)}{' '}
+                          - RM{AMOUNT_PER_SERVICE * serviceCount} = RM
+                          {(
+                            total * (selectedWorker.commission / 100) -
+                              AMOUNT_PER_SERVICE * serviceCount || 0
                           ).toFixed(2)}
                         </span>
                       </div>
@@ -1239,7 +1190,9 @@ export default function POSInterface({
                   <Button
                     variant="outline"
                     className="h-12"
-                    onClick={savePendingTransaction}
+                    onClick={() => {
+                      savePendingTransaction();
+                    }}
                   >
                     <Clock className="h-4 w-4 mr-2" />
                     Save Pending
