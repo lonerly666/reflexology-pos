@@ -25,5 +25,20 @@ const electronHandler = {
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);
+contextBridge.exposeInMainWorld('api',{
+  //transactions
+  newTransaction: (data:any) => ipcRenderer.invoke("db:newTransaction", data),
+  getTransactions: (dateRange:{startDate:string, endDate:string}) => ipcRenderer.invoke("db:getTransactions", dateRange),
+  getTransactionById: (id:string) => ipcRenderer.invoke("db:getTransactionById", id),
+  updateTransactionStatus: (id:string, status:string) => ipcRenderer.invoke("db:updateTransactionStatus", id, status),
+  getPendingTransactions: () => ipcRenderer.invoke("db:getPendingTransactions"),
+  deletePendingTransaction: (id:string) => ipcRenderer.invoke("db:deletePendingTransaction", id),
+  updateTransactions: (data:any) => ipcRenderer.invoke("db:updateTransactions", data),
+  //services
+  getServices: () => ipcRenderer.invoke("db:getServices"),
+  addService: (service:any) => ipcRenderer.invoke("db:addService", service),
+  updateService: (service:any) => ipcRenderer.invoke("db:updateService", service),
+  deleteService: (id:number) => ipcRenderer.invoke("db:deleteService", id),
+});
 
 export type ElectronHandler = typeof electronHandler;

@@ -14,7 +14,10 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
-import Database from 'better-sqlite3';
+import db from './db';
+import { transactionHandlers } from '../ipc/transactionDb';
+import { servicesHandlers } from '../ipc/servicesDb';
+
 
 class AppUpdater {
   constructor() {
@@ -23,199 +26,9 @@ class AppUpdater {
     autoUpdater.checkForUpdatesAndNotify();
   }
 }
-let db;
-function initializeDatabase() {
-  db = new Database(path.join(app.getPath('userData'), 'pos.db'));
-  db.exec(
-    `
-    -- Transactions
-CREATE TABLE IF NOT EXISTS transactions (
-    id TEXT PRIMARY KEY,          -- assigned by you
-    clientId INTEGER,             -- FK → members.id
-    subtotal REAL NOT NULL,
-    discountPercent REAL NOT NULL,
-    discountAmount REAL NOT NULL,
-    tax REAL NOT NULL,
-    tipAmount REAL NOT NULL,
-    total REAL NOT NULL,
-    workerId TEXT,
-    workerName TEXT,
-    workerCommission REAL,
-    workerCommissionAmount REAL,
-    cashierName TEXT NOT NULL,
-    date DATETIME NOT NULL,
-    notes TEXT,
-    companyTake REAL,
-    FOREIGN KEY (clientId) REFERENCES members(id)
-);
-
--- Transaction Items
-CREATE TABLE IF NOT EXISTS transaction_items (
-    id TEXT PRIMARY KEY,          -- assigned by you
-    transactionId TEXT NOT NULL,  -- FK → transactions.id
-    serviceId INTEGER,            -- FK → services.id
-    name TEXT NOT NULL,
-    price REAL NOT NULL,
-    quantity INTEGER NOT NULL,
-    duration INTEGER NOT NULL,
-    FOREIGN KEY (transactionId) REFERENCES transactions(id) ON DELETE CASCADE,
-    FOREIGN KEY (serviceId) REFERENCES services(id)
-);
-
--- Pending Transactions
-CREATE TABLE IF NOT EXISTS pending_transactions (
-    id TEXT PRIMARY KEY,          -- assigned by you
-    clientId INTEGER,             -- FK → members.id
-    subtotal REAL NOT NULL,
-    discountPercent REAL NOT NULL,
-    discountAmount REAL NOT NULL,
-    tax REAL NOT NULL,
-    tipAmount REAL NOT NULL,
-    total REAL NOT NULL,
-    workerId TEXT,
-    workerName TEXT,
-    workerCommission REAL,
-    workerCommissionAmount REAL,
-    cashierName TEXT NOT NULL,
-    date DATETIME NOT NULL,
-    notes TEXT,
-    companyTake REAL,
-    FOREIGN KEY (clientId) REFERENCES members(id)
-);
-
--- Pending Transaction Items
-CREATE TABLE IF NOT EXISTS pending_transaction_items (
-    id TEXT PRIMARY KEY,          -- assigned by you
-    transactionId TEXT NOT NULL,  -- FK → pending_transactions.id
-    serviceId INTEGER,            -- FK → services.id
-    name TEXT NOT NULL,
-    price REAL NOT NULL,
-    quantity INTEGER NOT NULL,
-    duration INTEGER NOT NULL,
-    FOREIGN KEY (transactionId) REFERENCES pending_transactions(id) ON DELETE CASCADE,
-    FOREIGN KEY (serviceId) REFERENCES services(id)
-);
-
-
-CREATE TABLE IF NOT EXISTS members (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT,       -- can be NULL
-    phone TEXT NOT NULL,
-    points INTEGER NOT NULL DEFAULT 0
-);
-
-
-CREATE TABLE IF NOT EXISTS services (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    duration INTEGER NOT NULL,   -- in minutes (or whatever unit you use)
-    price REAL NOT NULL,
-    category TEXT NOT NULL
-);
-
-
-CREATE TABLE IF NOT EXISTS workers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    commission REAL NOT NULL,   -- % or fixed amount depending on your logic
-    status TEXT NOT NULL CHECK (status IN ('available', 'busy', 'break'))
-);
-
-
--- Worker performance summary
-CREATE TABLE IF NOT EXISTS worker_performance (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    workerId INTEGER NOT NULL,   -- FK → workers.id
-    totalEarnings REAL NOT NULL,
-    totalTransactions INTEGER NOT NULL,
-    averageTransaction REAL NOT NULL,
-    hoursWorked REAL NOT NULL,
-    rating REAL NOT NULL,
-    FOREIGN KEY (workerId) REFERENCES workers(id)
-);
-
--- Monthly earnings breakdown
-CREATE TABLE IF NOT EXISTS worker_performance_monthly (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    performanceId INTEGER NOT NULL,  -- FK → worker_performance.id
-    month TEXT NOT NULL,             -- e.g. '2025-09'
-    earnings REAL NOT NULL,
-    transactions INTEGER NOT NULL,
-    FOREIGN KEY (performanceId) REFERENCES worker_performance(id) ON DELETE CASCADE
-);
-
--- Weekly earnings breakdown
-CREATE TABLE IF NOT EXISTS worker_performance_weekly (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    performanceId INTEGER NOT NULL,  -- FK → worker_performance.id
-    day TEXT NOT NULL,               -- e.g. 'Mon', '2025-09-25'
-    earnings REAL NOT NULL,
-    transactions INTEGER NOT NULL,
-    FOREIGN KEY (performanceId) REFERENCES worker_performance(id) ON DELETE CASCADE
-);
-
--- Service breakdown
-CREATE TABLE IF NOT EXISTS worker_performance_service (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    performanceId INTEGER NOT NULL,  -- FK → worker_performance.id
-    serviceId INTEGER,               -- FK → services.id (optional, for linking)
-    service TEXT NOT NULL,           -- snapshot name
-    count INTEGER NOT NULL,
-    earnings REAL NOT NULL,
-    FOREIGN KEY (performanceId) REFERENCES worker_performance(id) ON DELETE CASCADE,
-    FOREIGN KEY (serviceId) REFERENCES services(id)
-);
-
--- Worker performance summary
-CREATE TABLE IF NOT EXISTS worker_performance (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    workerId INTEGER NOT NULL,   -- FK → workers.id
-    totalEarnings REAL NOT NULL,
-    totalTransactions INTEGER NOT NULL,
-    averageTransaction REAL NOT NULL,
-    hoursWorked REAL NOT NULL,
-    rating REAL NOT NULL,
-    FOREIGN KEY (workerId) REFERENCES workers(id)
-);
-
--- Monthly earnings breakdown
-CREATE TABLE IF NOT EXISTS worker_performance_monthly (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    performanceId INTEGER NOT NULL,  -- FK → worker_performance.id
-    month TEXT NOT NULL,             -- e.g. '2025-09'
-    earnings REAL NOT NULL,
-    transactions INTEGER NOT NULL,
-    FOREIGN KEY (performanceId) REFERENCES worker_performance(id) ON DELETE CASCADE
-);
-
--- Weekly earnings breakdown
-CREATE TABLE IF NOT EXISTS worker_performance_weekly (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    performanceId INTEGER NOT NULL,  -- FK → worker_performance.id
-    day TEXT NOT NULL,               -- e.g. 'Mon', '2025-09-25'
-    earnings REAL NOT NULL,
-    transactions INTEGER NOT NULL,
-    FOREIGN KEY (performanceId) REFERENCES worker_performance(id) ON DELETE CASCADE
-);
-
--- Service breakdown
-CREATE TABLE IF NOT EXISTS worker_performance_service (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    performanceId INTEGER NOT NULL,  -- FK → worker_performance.id
-    serviceId INTEGER,               -- FK → services.id (optional, for linking)
-    service TEXT NOT NULL,           -- snapshot name
-    count INTEGER NOT NULL,
-    earnings REAL NOT NULL,
-    FOREIGN KEY (performanceId) REFERENCES worker_performance(id) ON DELETE CASCADE,
-    FOREIGN KEY (serviceId) REFERENCES services(id)
-);`,
-  );
-
-  console.log('Database initialized with tables.');
-}
 
 let mainWindow: BrowserWindow | null = null;
+
 
 ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
@@ -319,7 +132,8 @@ app.on('window-all-closed', () => {
 app
   .whenReady()
   .then(() => {
-    initializeDatabase();
+    servicesHandlers();
+    transactionHandlers();
     createWindow();
     app.on('activate', () => {
       // On macOS it's common to re-create a window in the app when the

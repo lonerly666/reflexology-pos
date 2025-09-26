@@ -8,98 +8,79 @@ import PendingTransactions from '@/components/pos/PendingTransactions';
 import WorkersPerformance from '@/components/workers/WorkersPerformance';
 import { PendingTransaction } from '@/interfaces/PendingTransaction';
 
-
-// Mock pending transactions - in real app this would come from backend
-const mockPendingTransactions: PendingTransaction[] = [
-  {
-    transactionId: 'PND-001',
-    items: [
-      {
-        id: '1',
-        name: 'Full Body Reflexology',
-        price: 80,
-        quantity: 1,
-        duration: 60,
-      },
-      {
-        id: '5',
-        name: 'Hot Stone Therapy',
-        price: 65,
-        quantity: 1,
-        duration: 45,
-      },
-    ],
-    subtotal: 145,
-    discountPercent: 0,
-    discountAmount: 0,
-    tax: 14.5,
-    tipAmount: 0,
-    total: 159.5,
-    clientName: 'Sarah Johnson',
-    workerId: '2',
-    workerName: 'Bob Martinez',
-    workerCommission: 50,
-    workerCommissionAmount: 79.75,
-    cashierName: 'John Doe',
-    date: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-    notes: 'Client requested after service payment',
-  },
-  {
-    transactionId: 'PND-002',
-    items: [
-      {
-        id: '2',
-        name: 'Foot Reflexology',
-        price: 45,
-        quantity: 2,
-        duration: 30,
-      },
-    ],
-    subtotal: 90,
-    discountPercent: 10,
-    discountAmount: 9,
-    tax: 8.1,
-    tipAmount: 0,
-    total: 89.1,
-    clientName: 'Mike Chen',
-    workerId: '1',
-    workerName: 'Alice Chen',
-    workerCommission: 45,
-    workerCommissionAmount: 40.1,
-    cashierName: 'Jane Smith',
-    date: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-    notes: 'Waiting for partner to finish service',
-  },
-];
+// // Mock pending transactions - in real app this would come from backend
+// const mockPendingTransactions: PendingTransaction[] = [
+//   {
+//     transactionId: 'PND-001',
+//     items: [
+//       {
+//         id: '1',
+//         name: 'Full Body Reflexology',
+//         price: 80,
+//         quantity: 1,
+//         duration: 60,
+//       },
+//       {
+//         id: '5',
+//         name: 'Hot Stone Therapy',
+//         price: 65,
+//         quantity: 1,
+//         duration: 45,
+//       },
+//     ],
+//     subtotal: 145,
+//     discountPercent: 0,
+//     discountAmount: 0,
+//     tax: 14.5,
+//     tipAmount: 0,
+//     total: 159.5,
+//     clientName: 'Sarah Johnson',
+//     workerId: '2',
+//     workerName: 'Bob Martinez',
+//     workerCommission: 50,
+//     workerCommissionAmount: 79.75,
+//     cashierName: 'John Doe',
+//     date: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+//     notes: 'Client requested after service payment',
+//   },
+//   {
+//     transactionId: 'PND-002',
+//     items: [
+//       {
+//         id: '2',
+//         name: 'Foot Reflexology',
+//         price: 45,
+//         quantity: 2,
+//         duration: 30,
+//       },
+//     ],
+//     subtotal: 90,
+//     discountPercent: 10,
+//     discountAmount: 9,
+//     tax: 8.1,
+//     tipAmount: 0,
+//     total: 89.1,
+//     clientName: 'Mike Chen',
+//     workerId: '1',
+//     workerName: 'Alice Chen',
+//     workerCommission: 45,
+//     workerCommissionAmount: 40.1,
+//     cashierName: 'Jane Smith',
+//     date: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
+//     notes: 'Waiting for partner to finish service',
+//   },
+// ];
 
 const Index = () => {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
-  const [pendingTransactionData, setPendingTransactionData] = useState<
-    PendingTransaction[]
-  >(mockPendingTransactions);
 
   const handleEditTransaction = (transaction: any) => {
     setEditingTransaction(transaction);
     setActiveSection('pos');
   };
 
-  const handleTransactionSaved = (
-    data: Parameters<typeof PendingTransactions>[0]['onEditTransaction'],
-  ) => {
-    if (editingTransaction) {
-      //handle update existing pending transaction
-      setPendingTransactionData((prev: any) => {
-        return prev.map((t: any) =>
-          t.transactionId === editingTransaction.transactionId ? data : t,
-        );
-      });
-    } else {
-      //handle new pending transaction
-      setPendingTransactionData((prev: any) => {
-        return [...prev, data];
-      });
-    }
+  const handleTransactionSaved = () => {
     setEditingTransaction(null);
     setActiveSection('pending');
   };
@@ -119,11 +100,7 @@ const Index = () => {
         return <AppointmentBooking />;
       case 'pending':
         return (
-          <PendingTransactions
-            onEditTransaction={handleEditTransaction}
-            pendingTransactionData={pendingTransactionData}
-            setPendingTransactionData={setPendingTransactionData}
-          />
+          <PendingTransactions onEditTransaction={handleEditTransaction} />
         );
       case 'workers':
         return <WorkersPerformance />;

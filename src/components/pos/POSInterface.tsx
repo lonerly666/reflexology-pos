@@ -37,54 +37,9 @@ interface CartItem extends Service {
 }
 
 interface POSInterfaceProps {
-  editingTransaction?: PendingTransaction;
+  editingTranscaction?: PendingTransaction;
   onTransactionSaved?: (data: any) => void;
 }
-
-const SERVICES: Service[] = [
-  {
-    id: '1',
-    name: 'Full Body Reflexology',
-    duration: 60,
-    price: 80,
-    category: 'Reflexology',
-  },
-  {
-    id: '2',
-    name: 'Foot Reflexology',
-    duration: 30,
-    price: 45,
-    category: 'Reflexology',
-  },
-  {
-    id: '3',
-    name: 'Hand Reflexology',
-    duration: 20,
-    price: 30,
-    category: 'Reflexology',
-  },
-  {
-    id: '4',
-    name: 'Ear Reflexology',
-    duration: 15,
-    price: 25,
-    category: 'Reflexology',
-  },
-  {
-    id: '5',
-    name: 'Hot Stone Therapy',
-    duration: 45,
-    price: 65,
-    category: 'Therapy',
-  },
-  {
-    id: '6',
-    name: 'Aromatherapy Session',
-    duration: 30,
-    price: 40,
-    category: 'Therapy',
-  },
-];
 
 const MOCK_MEMBERS: Member[] = [
   {
@@ -135,35 +90,30 @@ const MOCK_WORKERS: Worker[] = [
     name: 'Alice Chen',
     commission: 45,
     status: 'available',
-    queuePosition: 1,
   },
   {
     id: '2',
     name: 'Bob Martinez',
     commission: 50,
     status: 'available',
-    queuePosition: 2,
   },
   {
     id: '3',
     name: 'Carol Kim',
     commission: 40,
     status: 'busy',
-    queuePosition: 3,
   },
   {
     id: '4',
     name: 'David Park',
     commission: 48,
     status: 'available',
-    queuePosition: 4,
   },
   {
     id: '5',
     name: 'Emma Rodriguez',
     commission: 42,
     status: 'break',
-    queuePosition: 5,
   },
 ];
 
@@ -190,13 +140,26 @@ export default function POSInterface({
   const [showMixedPayment, setShowMixedPayment] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [workerSearchTerm, setWorkerSearchTerm] = useState('');
+  const [services, setServices] = useState<Service[]>([]);
+
+  useEffect(() => {
+    //get all available services from DB
+    window.api
+      .getServices()
+      .then((services: Service[]) => {
+        setServices(services);
+      })
+      .catch((err: any) => {
+        console.error('Error loading services from DB:', err);
+      });
+  }, []);
 
   const categories = [
     'all',
-    ...Array.from(new Set(SERVICES.map((s) => s.category))),
+    ...Array.from(new Set(services.map((s) => s.category))),
   ];
 
-  const filteredServices = SERVICES.filter((service) => {
+  const filteredServices = services.filter((service) => {
     const matchesSearch = service.name
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
@@ -273,7 +236,7 @@ export default function POSInterface({
     if (editingTransaction) {
       const cartItems: CartItem[] = editingTransaction.items.map((item) => ({
         ...item,
-        category: SERVICES.find((s) => s.id === item.id)?.category || 'Other',
+        category: services.find((s) => s.id === item.id)?.category || 'Other',
         quantity: item.quantity,
       }));
       setCart(cartItems);
@@ -305,10 +268,10 @@ export default function POSInterface({
 
   const savePendingTransaction = () => {
     const transactionId =
-      editingTransaction?.transactionId || `PND-${Date.now()}`; //TODO: id needs to be updated later to match requirement
+      editingTransaction? editingTransaction.id : `TXN-${Date.now()}`; //TODO: id needs to be updated later to match requirement
     const companyCut = serviceCount * AMOUNT_PER_SERVICE;
-    const pendingTransaction: PendingTransaction = {
-      transactionId,
+    const pendingTransaction = {
+      id: transactionId,
       items: cart.map((item) => ({
         id: item.id,
         name: item.name,
@@ -322,29 +285,61 @@ export default function POSInterface({
       tax,
       tipAmount,
       total,
-      clientName: clientName || undefined,
+      clientId: selectedMember?.id || null,
+      clientName: clientName || null,
       companyTake: companyCut,
+      status: 'pending',
       cashierName: 'John Doe', // This would come from auth context
-      date: editingTransaction?.date || new Date(),
-      notes: notes || undefined,
+      date: editingTransaction?.date || new Date().toISOString(),
+      notes: notes || null,
       workerId: selectedWorker?.id,
       workerName: selectedWorker?.name,
       workerCommission: selectedWorker?.commission,
       workerCommissionAmount: selectedWorker
         ? total * (selectedWorker.commission / 100) - companyCut
         : 0,
+      paymentMethod: '',
     };
 
-    //TODO: Put into pending transaction DB (to prevent data loss in the case of electric cutoff), all pending transaction will need to be completed EOD
-    // console.log('Saving pending transaction:', pendingTransaction);
+    editingTransaction
+      ? updatedTransactionInDB(pendingTransaction)
+      : writeTransactionToDB(pendingTransaction);
     onTransactionSaved?.(pendingTransaction);
     clearCart();
+  };
+
+  const writeTransactionToDB = async (data: any) => {
+    console.log('Saving transaction to DB:', data);
+    await window.api
+      .newTransaction(data)
+      .then((res: any) => {
+        console.log('Transaction saved to DB:', res);
+      })
+      .catch((err: any) => {
+        console.error('Error saving transaction to DB:', err);
+      });
+  };
+
+  const updatedTransactionInDB = async (data: any) => {
+    console.log('Updating transaction in DB:', data);
+    await window.api
+      .updateTransactions(data)
+      .then((res: any) => {
+        console.log('Transaction updated in DB:', res);
+        onTransactionSaved?.(data);
+      })
+      .catch((err: any) => {
+        console.error('Error updating transaction in DB:', err);
+      });
   };
 
   const completeTransaction = (
     paymentMethod: 'cash' | 'card' | 'points' | 'mixed',
   ) => {
-    const transactionId = `TXN-${Date.now()}`; //TODO: id needs to be updated later to match requirement
+  
+    const transactionId = editingTransaction
+      ? editingTransaction.id
+      : `TXN-${Date.now()}`; //TODO: id needs to be updated later to match requirement
 
     let finalPaymentMethods = paymentMethods;
     if (paymentMethod !== 'mixed') {
@@ -375,7 +370,7 @@ export default function POSInterface({
       : 0 - companyCut;
 
     const transactionData = {
-      transactionId,
+      id: transactionId,
       items: cart.map((item) => ({
         id: item.id,
         name: item.name,
@@ -391,17 +386,21 @@ export default function POSInterface({
       total,
       paymentMethod,
       paymentMethods: finalPaymentMethods,
-      memberId: selectedMember?.id,
-      memberName: selectedMember?.name,
+      clientId: selectedMember?.id || null,
+      memberName: selectedMember?.name || null,
       workerId: selectedWorker?.id,
       workerName: selectedWorker?.name,
       workerCommission: selectedWorker?.commission,
       workerCommissionAmount: workerCommission,
       cashierName: 'John Doe', // This would come from auth context
-      clientName: clientName || undefined,
-      date: new Date(),
+      clientName: clientName || null,
+      date: new Date().toISOString(),
       companyTake: companyCut,
+      status: 'paid',
     };
+    editingTransaction
+      ? updatedTransactionInDB(transactionData)
+      : writeTransactionToDB(transactionData);
     setLastTransaction(transactionData);
     setShowReceiptModal(true);
     clearCart();
@@ -611,8 +610,10 @@ export default function POSInterface({
                     <span>RM {subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                      <span>Company's Take: </span>
-                      <span>RM {(serviceCount*AMOUNT_PER_SERVICE).toFixed(2)}</span>
+                    <span>Company's Take: </span>
+                    <span>
+                      RM {(serviceCount * AMOUNT_PER_SERVICE).toFixed(2)}
+                    </span>
                   </div>
                   {(discountPercent > 0 || discountAmount > 0) && (
                     <div className="flex justify-between text-destructive">
@@ -1051,9 +1052,6 @@ export default function POSInterface({
                               >
                                 {worker.status}
                               </Badge>
-                              <p className="text-xs text-muted-foreground">
-                                Queue: #{worker.queuePosition}
-                              </p>
                             </div>
                           </div>
                         </div>
@@ -1191,7 +1189,7 @@ export default function POSInterface({
                     variant="outline"
                     className="h-12"
                     onClick={() => {
-                      savePendingTransaction();
+                      if (selectedWorker) savePendingTransaction();
                     }}
                   >
                     <Clock className="h-4 w-4 mr-2" />

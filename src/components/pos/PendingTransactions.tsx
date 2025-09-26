@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Edit, Trash2, CreditCard, Banknote, Clock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Edit, Trash2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,24 +8,43 @@ import { PendingTransaction } from '@/interfaces/PendingTransaction';
 
 interface PendingTransactionsProps {
   onEditTransaction: (transaction: PendingTransaction) => void;
-  pendingTransactionData?: PendingTransaction[];
-  setPendingTransactionData?: React.Dispatch<
-    React.SetStateAction<PendingTransaction[]>
-  >;
 }
 
 export default function PendingTransactions({
   onEditTransaction,
-  pendingTransactionData,
-  setPendingTransactionData,
 }: PendingTransactionsProps) {
-  const deletePendingTransaction = (transactionId: string) => {
-    if (setPendingTransactionData) {
-      setPendingTransactionData(
-        (prev: PendingTransaction[]) =>
-          prev?.filter((t) => t.transactionId !== transactionId) || [],
-      );
-    }
+  const [pendingTransactionData, setPendingTransactionData] = useState<any[]>(
+    [],
+  );
+
+  useEffect(() => {
+    // Fetch pending transactions from the database on component mount
+    window.api
+      .getPendingTransactions()
+      .then((data) => {
+        console.log(data);
+        setPendingTransactionData(data);
+      })
+      .catch((err) => {
+        console.error('Error fetching pending transactions from DB:', err);
+        return;
+      });
+  }, []);
+
+  const deletePendingTransaction = async (transactionId: string) => {
+    await window.api
+      .deletePendingTransaction(transactionId)
+      .then(() => {
+        console.log('Pending transaction deleted from DB:', transactionId);
+        setPendingTransactionData(
+          (prev:any) =>
+            prev?.filter((t:any) => t.id !== transactionId) || [],
+        );
+      })
+      .catch((err) => {
+        console.error('Error deleting pending transaction from DB:', err);
+        return;
+      });
   };
 
   const formatDuration = (minutes: number) => {
@@ -39,8 +58,9 @@ export default function PendingTransactions({
 
   const formatTimeAgo = (date: Date) => {
     const now = new Date();
+    const dateObj = new Date(date);
     const diffInMinutes = Math.floor(
-      (now.getTime() - date.getTime()) / (1000 * 60),
+      (now.getTime() - dateObj.getTime()) / (1000 * 60),
     );
 
     if (diffInMinutes < 60) {
@@ -82,15 +102,13 @@ export default function PendingTransactions({
         <div className="grid gap-4">
           {pendingTransactionData?.map((transaction) => (
             <Card
-              key={transaction.transactionId}
+              key={transaction.id}
               className="border-l-4 border-l-yellow-500"
             >
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-lg">
-                      {transaction.transactionId}
-                    </CardTitle>
+                    <CardTitle className="text-lg">{transaction.id}</CardTitle>
                     <p className="text-sm text-muted-foreground">
                       {transaction.clientName && `${transaction.clientName} • `}
                       {transaction.workerName &&
@@ -105,7 +123,7 @@ export default function PendingTransactions({
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {transaction.items.reduce(
-                        (acc, item) => acc + item.duration * item.quantity,
+                        (acc:any, item:any) => acc + item.duration * item.quantity,
                         0,
                       )}{' '}
                       min total
@@ -117,7 +135,7 @@ export default function PendingTransactions({
               <CardContent className="space-y-4">
                 {/* Items */}
                 <div className="space-y-2">
-                  {transaction.items.map((item, index) => (
+                  {transaction.items.map((item:any, index:any) => (
                     <div
                       key={index}
                       className="flex justify-between items-center py-2"
@@ -222,7 +240,7 @@ export default function PendingTransactions({
                     variant="destructive"
                     size="sm"
                     onClick={() =>
-                      deletePendingTransaction(transaction.transactionId)
+                      deletePendingTransaction(transaction.id)
                     }
                   >
                     <Trash2 className="h-4 w-4" />

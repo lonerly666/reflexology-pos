@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { format } from "date-fns";
+import { useState, useEffect } from "react";
+import { format, set } from "date-fns";
 import { Search, Printer, Eye, Filter, Calendar, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,139 +36,38 @@ interface Transaction {
   status: "completed" | "refunded" | "voided";
 }
 
-// Mock transaction data
-const MOCK_TRANSACTIONS: Transaction[] = [
-  {
-    id: "1",
-    transactionId: "TXN-1734567890123",
-    date: new Date("2024-12-18T14:30:00"),
-    clientName: "Emma Wilson",
-    workerId: "1",
-    workerName: "Alice Chen",
-    workerCommission: 45,
-    workerCommissionAmount: 44.1,
-    cashierName: "Sarah Johnson",
-    items: [
-      { id: "1", name: "Full Body Reflexology", price: 80, quantity: 1, duration: 60 }
-    ],
-    subtotal: 80,
-    discountPercent: 0,
-    discountAmount: 0,
-    tax: 8,
-    tipAmount: 10,
-    total: 98,
-    paymentMethod: "card",
-    status: "completed"
-  },
-  {
-    id: "2", 
-    transactionId: "TXN-1734567890124",
-    date: new Date("2024-12-18T13:45:00"),
-    clientName: "Michael Brown",
-    workerId: "3",
-    workerName: "Carol Kim",
-    workerCommission: 40,
-    workerCommissionAmount: 39.66,
-    cashierName: "Sarah Johnson",
-    items: [
-      { id: "2", name: "Foot Reflexology", price: 45, quantity: 1, duration: 30 },
-      { id: "6", name: "Aromatherapy Session", price: 40, quantity: 1, duration: 30 }
-    ],
-    subtotal: 85,
-    discountPercent: 10,
-    discountAmount: 8.5,
-    tax: 7.65,
-    tipAmount: 15,
-    total: 99.15,
-    paymentMethod: "cash",
-    status: "completed"
-  },
-  {
-    id: "3",
-    transactionId: "TXN-1734567890125", 
-    date: new Date("2024-12-18T12:15:00"),
-    clientName: undefined,
-    workerId: "2",
-    workerName: "Bob Martinez",
-    workerCommission: 50,
-    workerCommissionAmount: 33,
-    cashierName: "John Doe",
-    items: [
-      { id: "3", name: "Hand Reflexology", price: 30, quantity: 2, duration: 20 }
-    ],
-    subtotal: 60,
-    discountPercent: 0,
-    discountAmount: 0,
-    tax: 6,
-    tipAmount: 0,
-    total: 66,
-    paymentMethod: "card",
-    status: "completed"
-  },
-  {
-    id: "4",
-    transactionId: "TXN-1734567890126",
-    date: new Date("2024-12-17T16:20:00"),
-    clientName: "Jennifer Davis",
-    workerId: "4",
-    workerName: "David Park",
-    workerCommission: 48,
-    workerCommissionAmount: 38.16,
-    cashierName: "Sarah Johnson",
-    items: [
-      { id: "5", name: "Hot Stone Therapy", price: 65, quantity: 1, duration: 45 }
-    ],
-    subtotal: 65,
-    discountPercent: 0,
-    discountAmount: 0,
-    tax: 6.5,
-    tipAmount: 8,
-    total: 79.5,
-    paymentMethod: "card",
-    status: "refunded"
-  },
-  {
-    id: "5",
-    transactionId: "TXN-1734567890127",
-    date: new Date("2024-12-17T11:00:00"),
-    clientName: "David Kim",
-    workerId: "5",
-    workerName: "Emma Rodriguez",
-    workerCommission: 42,
-    workerCommissionAmount: 49.64,
-    cashierName: "John Doe",
-    items: [
-      { id: "4", name: "Ear Reflexology", price: 25, quantity: 1, duration: 15 },
-      { id: "1", name: "Full Body Reflexology", price: 80, quantity: 1, duration: 60 }
-    ],
-    subtotal: 105,
-    discountPercent: 15,
-    discountAmount: 15.75,
-    tax: 8.93,
-    tipAmount: 20,
-    total: 118.18,
-    paymentMethod: "cash",
-    status: "completed"
-  }
-];
-
 export default function InvoicesHistory() {
-  const [transactions] = useState<Transaction[]>(MOCK_TRANSACTIONS);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
 
+
+  useEffect(() => {
+    // Fetch transactions from the database for the last 30 days
+    const fetchTransactions = async () => {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(endDate.getDate() - 30);
+      const data = await window.api.getTransactions({
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString()
+      });
+      setTransactions(data);
+    };
+    fetchTransactions();
+  },[]);
+
   const filteredTransactions = transactions.filter(transaction => {
     const matchesSearch = 
-      transaction.transactionId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      transaction.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       transaction.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       transaction.cashierName.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === "all" || transaction.status === statusFilter;
     const matchesPayment = paymentFilter === "all" || transaction.paymentMethod === paymentFilter;
-    
     return matchesSearch && matchesStatus && matchesPayment;
   });
 
@@ -191,9 +90,13 @@ export default function InvoicesHistory() {
   };
 
   const exportTransactions = () => {
+    if(filteredTransactions.length === 0) {
+      alert("No transactions to export.");
+      return;
+    }
     const csvData = filteredTransactions.map(t => ({
       'Transaction ID': t.transactionId,
-      'Date': format(t.date, 'yyyy-MM-dd HH:mm:ss'),
+      'Date': format(t.date, 'yyyy-MM-dd HH:mm'),
       'Client': t.clientName || 'Walk-in',
       'Cashier': t.cashierName,
       'Items': t.items.length,
@@ -288,7 +191,7 @@ export default function InvoicesHistory() {
       <Card>
         <CardHeader>
           <CardTitle>
-            Recent Transactions ({filteredTransactions.length})
+            Transactions History
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -311,13 +214,13 @@ export default function InvoicesHistory() {
               {filteredTransactions.map((transaction) => (
                 <TableRow key={transaction.id}>
                   <TableCell className="font-mono text-sm">
-                    {transaction.transactionId}
+                    {transaction.id}
                   </TableCell>
                   <TableCell>
                     <div className="text-sm">
                       <div>{format(transaction.date, 'MMM dd, yyyy')}</div>
                       <div className="text-muted-foreground">
-                        {format(transaction.date, 'HH:mm:ss')}
+                        {format(transaction.date, 'HH:mm')}
                       </div>
                     </div>
                   </TableCell>
@@ -356,7 +259,7 @@ export default function InvoicesHistory() {
                     {getStatusBadge(transaction.status)}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 justify-center">
                       <Button
                         size="sm"
                         variant="ghost"

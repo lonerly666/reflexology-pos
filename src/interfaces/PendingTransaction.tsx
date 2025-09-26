@@ -22,4 +22,6 @@ export interface PendingTransaction {
   date: Date;
   notes?: string;
   companyTake?: number;
+  status: string;
+  paymentMethod: string;
 }

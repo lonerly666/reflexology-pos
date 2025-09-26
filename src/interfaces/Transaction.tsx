@@ -22,4 +22,5 @@ export interface Transaction {
   date: Date;
   notes?: string;
   companyTake?: number;
+  status: 'paid' | 'refund' | 'void';
 }
