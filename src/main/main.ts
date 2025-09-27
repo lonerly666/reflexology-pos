@@ -17,6 +17,7 @@ import { resolveHtmlPath } from './util';
 import db from './db';
 import { transactionHandlers } from '../ipc/transactionDb';
 import { servicesHandlers } from '../ipc/servicesDb';
+import {membersHandler} from '../ipc/membersDb';
 
 
 class AppUpdater {
@@ -41,12 +42,12 @@ if (process.env.NODE_ENV === 'production') {
   sourceMapSupport.install();
 }
 
-const isDebug =
-  process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
+// const isDebug =
+//   process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
 
-if (isDebug) {
-  require('electron-debug').default();
-}
+// if (isDebug) {
+//   require('electron-debug').default();
+// }
 
 const installExtensions = async () => {
   const installer = require('electron-devtools-installer');
@@ -62,9 +63,9 @@ const installExtensions = async () => {
 };
 
 const createWindow = async () => {
-  if (isDebug) {
-    await installExtensions();
-  }
+  // if (isDebug) {
+  //   await installExtensions();
+  // }
 
   const RESOURCES_PATH = app.isPackaged
     ? path.join(process.resourcesPath, 'assets')
@@ -132,6 +133,7 @@ app.on('window-all-closed', () => {
 app
   .whenReady()
   .then(() => {
+    membersHandler();
     servicesHandlers();
     transactionHandlers();
     createWindow();

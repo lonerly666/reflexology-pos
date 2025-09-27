@@ -37,6 +37,7 @@ export default function MainLayout({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
   const menuItems = [
+    { id: "dashboard", label: "Dashboard", icon: Menu, roles: ["Admin", "Manager", "Cashier"] },
     { id: "pos", label: "Point of Sale", icon: ShoppingCart, roles: ["Admin", "Manager", "Cashier"] },
     { id: "pending", label: "Pending Orders", icon: Clock, roles: ["Admin", "Manager", "Cashier"] },
     { id: "appointments", label: "Appointments", icon: Calendar, roles: ["Admin", "Manager", "Therapist"] },

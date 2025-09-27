@@ -10,10 +10,20 @@ declare global {
       getPendingTransactions: () => Promise<any[]>;
       deletePendingTransaction: (id: string) => Promise<{ changes: number }>;
       getTransactionById: (id: string) => Promise<any | null>;
-      updateTransactionStatus: (id: string, status: string) => Promise<{ changes: number }>;
+      updateTransactionStatus: (
+        id: string,
+        status: string,
+      ) => Promise<{ changes: number }>;
       addService: (service: any) => Promise<any>;
       updateService: (service: any) => Promise<any>;
       deleteService: (id: number) => Promise<{ success: boolean }>;
+
+      //members
+      addMember: (data: any) => Promise<any>;
+      getMembers: () => Promise<any[]>;
+      deleteMember: (id: number) => Promise<{ success: boolean }>;
+      updateMember: (data: any) => Promise<{ changes: number }>;
+      searchMember: (data: any) => Promise<any[]>;
       // add more APIs here, e.g.
       // getSales: () => Promise<Sale[]>;
       // login: (username: string, password: string) => Promise<User | null>;

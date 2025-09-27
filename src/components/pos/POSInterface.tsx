@@ -28,7 +28,6 @@ import {
 import { PaymentMethod } from '@/interfaces/PaymentMethod';
 import { Service } from '@/interfaces/Service';
 import { Member } from '@/interfaces/Member';
-import { PendingTransaction } from '@/interfaces/PendingTransaction';
 import { Worker } from '@/interfaces/Worker';
 
 interface CartItem extends Service {
@@ -37,7 +36,7 @@ interface CartItem extends Service {
 }
 
 interface POSInterfaceProps {
-  editingTranscaction?: PendingTransaction;
+  editingTransaction?: any;
   onTransactionSaved?: (data: any) => void;
 }
 
@@ -234,7 +233,7 @@ export default function POSInterface({
   // Load editing transaction if provided
   useEffect(() => {
     if (editingTransaction) {
-      const cartItems: CartItem[] = editingTransaction.items.map((item) => ({
+      const cartItems: CartItem[] = editingTransaction.items.map((item:any) => ({
         ...item,
         category: services.find((s) => s.id === item.id)?.category || 'Other',
         quantity: item.quantity,

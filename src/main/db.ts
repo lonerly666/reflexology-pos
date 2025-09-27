@@ -46,7 +46,7 @@ function createServices(){
 }
 
 dropTables(); //only use when you want to reset the db
-
+// db.prepare(`DROP TABLE IF EXISTS services;`).run();
 db.exec(
   `
     -- Transactions
@@ -89,10 +89,14 @@ CREATE TABLE IF NOT EXISTS transaction_items (
 CREATE TABLE IF NOT EXISTS members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    email TEXT,       -- can be NULL
+    email TEXT,                      -- optional
     phone TEXT NOT NULL,
-    points INTEGER NOT NULL DEFAULT 0
+    joinDate DATETIME NOT NULL,     
+    totalSpent REAL NOT NULL DEFAULT 0,
+    points REAL NOT NULL DEFAULT 0,
+    lastVisit DATETIME
 );
+
 
 
 CREATE TABLE IF NOT EXISTS services (

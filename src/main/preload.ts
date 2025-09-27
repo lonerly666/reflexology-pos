@@ -39,6 +39,14 @@ contextBridge.exposeInMainWorld('api',{
   addService: (service:any) => ipcRenderer.invoke("db:addService", service),
   updateService: (service:any) => ipcRenderer.invoke("db:updateService", service),
   deleteService: (id:number) => ipcRenderer.invoke("db:deleteService", id),
+
+
+  //members
+  getMembers: ()=> ipcRenderer.invoke("db:getMembers"),
+  addMember: (member:any) => ipcRenderer.invoke("db:addMember", member),
+  searchMember: (param:any) => ipcRenderer.invoke("db:searchMember", param),
+  deleteMember: (id:any) => ipcRenderer.invoke("db:deleteMember", id),
+  updateMember: (value:any) => ipcRenderer.invoke("db:updateMember", value), 
 });
 
 export type ElectronHandler = typeof electronHandler;
