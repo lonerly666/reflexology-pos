@@ -7,9 +7,10 @@ import InvoicesHistory from '@/components/invoices/InvoicesHistory';
 import PendingTransactions from '@/components/pos/PendingTransactions';
 import WorkersPerformance from '@/components/workers/WorkersPerformance';
 import ClientsManagement from '@/components/clients/ClientsManagement';
+import ServicesManagement from '@/components/services/ServicesManagement';
 
 const Index = () => {
-  const [activeSection, setActiveSection] = useState('dashboard');
+  const [activeSection, setActiveSection] = useState('pos');
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
 
   const handleEditTransaction = (transaction: any) => {
@@ -42,38 +43,31 @@ const Index = () => {
       case 'workers':
         return <WorkersPerformance />;
       case 'clients':
-        return <ClientsManagement/>;
-      case 'inventory':
-        return (
-          <div className="text-center py-12">
-            <h2 className="text-2xl font-bold mb-4">Inventory Management</h2>
-            <p className="text-muted-foreground">
-              Product and supply tracking interface would be implemented here.
-            </p>
-          </div>
-        );
-      case 'reports':
-        return (
-          <div className="text-center py-12">
-            <h2 className="text-2xl font-bold mb-4">Sales Reports</h2>
-            <p className="text-muted-foreground">
-              Analytics and reporting dashboard would be implemented here.
-            </p>
-          </div>
-        );
+        return <ClientsManagement />;
+      // case 'inventory':
+      //   return (
+      //     <div className="text-center py-12">
+      //       <h2 className="text-2xl font-bold mb-4">Inventory Management</h2>
+      //       <p className="text-muted-foreground">
+      //         Product and supply tracking interface would be implemented here.
+      //       </p>
+      //     </div>
+      //   );
+      // case 'reports':
+      //   return (
+      //     <div className="text-center py-12">
+      //       <h2 className="text-2xl font-bold mb-4">Sales Reports</h2>
+      //       <p className="text-muted-foreground">
+      //         Analytics and reporting dashboard would be implemented here.
+      //       </p>
+      //     </div>
+      //   );
       case 'invoices':
         return <InvoicesHistory />;
-      case 'settings':
-        return (
-          <div className="text-center py-12">
-            <h2 className="text-2xl font-bold mb-4">System Settings</h2>
-            <p className="text-muted-foreground">
-              Configuration and preferences interface would be implemented here.
-            </p>
-          </div>
-        );
+      case 'services':
+        return <ServicesManagement />;
       default:
-        return <Dashboard />;
+        return <ServicesManagement />;
     }
   };
 

@@ -16,10 +16,21 @@ export function membersHandler() {
   });
 
   ipcMain.handle('db:searchMember', (event, params) => {
+    const query = params;
+    const searchTerm = `%${query}%`;
     const stmt = db.prepare(
-      `SELECT * FROM members WHERE name LIKE '%' || @query || '%' OR phone LIKE '%' || @query || '%' ORDER BY created_at DESC `,
+      `SELECT * FROM members 
+   WHERE name LIKE ? OR phone LIKE ? 
+   ORDER BY lastVisit DESC`,
     );
-    return stmt.all();
+    try {
+      const info = stmt.all(searchTerm,searchTerm);
+      console.log(info);
+      return { success: true, info };
+    } catch (err) {
+      console.log('Failed to search member: ', err);
+      return { success: false, err };
+    }
   });
 
   ipcMain.handle('db:updateMember', (event, data) => {
@@ -50,9 +61,12 @@ export function membersHandler() {
 
   ipcMain.handle('db:deleteMember', (event, data) => {
     const id = data;
-    console.log(data);
     const del = db.prepare(`DELETE FROM members WHERE id = ${id}`);
-    const info = del.run();
-    return { success: info.changes > 0 };
+    try {
+      const info = del.run();
+      return { success: info.changes > 0, info };
+    } catch (err) {
+      console.log('Failed to delete member:', err);
+    }
   });
 }

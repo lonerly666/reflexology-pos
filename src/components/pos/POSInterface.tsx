@@ -40,49 +40,6 @@ interface POSInterfaceProps {
   onTransactionSaved?: (data: any) => void;
 }
 
-const MOCK_MEMBERS: Member[] = [
-  {
-    id: '1',
-    name: 'Alice Johnson',
-    email: 'alice@email.com',
-    phone: '555-0101',
-    points: 1250,
-    membershipLevel: 'Gold',
-  },
-  {
-    id: '2',
-    name: 'Bob Smith',
-    email: 'bob@email.com',
-    phone: '555-0102',
-    points: 580,
-    membershipLevel: 'Silver',
-  },
-  {
-    id: '3',
-    name: 'Carol Davis',
-    email: 'carol@email.com',
-    phone: '555-0103',
-    points: 2100,
-    membershipLevel: 'Platinum',
-  },
-  {
-    id: '4',
-    name: 'David Wilson',
-    email: 'david@email.com',
-    phone: '555-0104',
-    points: 320,
-    membershipLevel: 'Bronze',
-  },
-  {
-    id: '5',
-    name: 'Emma Brown',
-    email: 'emma@email.com',
-    phone: '555-0105',
-    points: 890,
-    membershipLevel: 'Silver',
-  },
-];
-
 const MOCK_WORKERS: Worker[] = [
   {
     id: '1',
@@ -140,13 +97,39 @@ export default function POSInterface({
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [workerSearchTerm, setWorkerSearchTerm] = useState('');
   const [services, setServices] = useState<Service[]>([]);
+  const [searchedMembers, setSearchMembers] = useState<Member[]>([]);
 
   useEffect(() => {
-    //get all available services from DB
+    const searchMember = async (query: any) => {
+      if (query === '') {
+        setSearchMembers([]);
+        return;
+      }
+      await window.api
+        .searchMember(query)
+        .then((res) => {
+          console.log(res);
+          setSearchMembers([...res.info]);
+        })
+        .catch((err) => {
+          alert(`Something went wrong: ${err}`);
+        });
+    };
+
+    const timeoutId = setTimeout(() => {
+      searchMember(memberSearchTerm);
+    }, 500);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [memberSearchTerm]);
+
+  useEffect(() => {
     window.api
       .getServices()
-      .then((services: Service[]) => {
-        setServices(services);
+      .then((res: Service[]) => {
+        setServices(res);
       })
       .catch((err: any) => {
         console.error('Error loading services from DB:', err);
@@ -166,13 +149,6 @@ export default function POSInterface({
       selectedCategory === 'all' || service.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
-
-  const filteredMembers = MOCK_MEMBERS.filter(
-    (member) =>
-      member.name.toLowerCase().includes(memberSearchTerm.toLowerCase()) ||
-      member.phone.includes(memberSearchTerm) ||
-      member.email.toLowerCase().includes(memberSearchTerm.toLowerCase()),
-  );
 
   const filteredWorkers = MOCK_WORKERS.filter((worker) =>
     worker.name.toLowerCase().includes(workerSearchTerm.toLowerCase()),
@@ -233,11 +209,13 @@ export default function POSInterface({
   // Load editing transaction if provided
   useEffect(() => {
     if (editingTransaction) {
-      const cartItems: CartItem[] = editingTransaction.items.map((item:any) => ({
-        ...item,
-        category: services.find((s) => s.id === item.id)?.category || 'Other',
-        quantity: item.quantity,
-      }));
+      const cartItems: CartItem[] = editingTransaction.items.map(
+        (item: any) => ({
+          ...item,
+          category: services.find((s) => s.id === item.id)?.category || 'Other',
+          quantity: item.quantity,
+        }),
+      );
       setCart(cartItems);
       setTipAmount(editingTransaction.tipAmount);
       setDiscountPercent(editingTransaction.discountPercent);
@@ -266,9 +244,11 @@ export default function POSInterface({
   };
 
   const savePendingTransaction = () => {
-    const transactionId =
-      editingTransaction? editingTransaction.id : `TXN-${Date.now()}`; //TODO: id needs to be updated later to match requirement
+    const transactionId = editingTransaction
+      ? editingTransaction.id
+      : `TXN-${Date.now()}`; //TODO: id needs to be updated later to match requirement
     const companyCut = serviceCount * AMOUNT_PER_SERVICE;
+    total = total - companyCut;
     const pendingTransaction = {
       id: transactionId,
       items: cart.map((item) => ({
@@ -295,7 +275,7 @@ export default function POSInterface({
       workerName: selectedWorker?.name,
       workerCommission: selectedWorker?.commission,
       workerCommissionAmount: selectedWorker
-        ? total * (selectedWorker.commission / 100) - companyCut
+        ? total * (selectedWorker.commission / 100)
         : 0,
       paymentMethod: '',
     };
@@ -335,7 +315,6 @@ export default function POSInterface({
   const completeTransaction = (
     paymentMethod: 'cash' | 'card' | 'points' | 'mixed',
   ) => {
-  
     const transactionId = editingTransaction
       ? editingTransaction.id
       : `TXN-${Date.now()}`; //TODO: id needs to be updated later to match requirement
@@ -364,9 +343,10 @@ export default function POSInterface({
     // Calculate worker commission
     let serviceCount = cart.reduce((sum, item) => sum + item.quantity, 0);
     let companyCut = serviceCount * AMOUNT_PER_SERVICE;
+    total = total - companyCut;
     const workerCommission = selectedWorker
       ? total * (selectedWorker.commission / 100)
-      : 0 - companyCut;
+      : 0;
 
     const transactionData = {
       id: transactionId,
@@ -941,42 +921,6 @@ export default function POSInterface({
                             </div>
                           </div>
                         )}
-
-                        {/* Auto-complete remaining balance button */}
-                        {remainingBalance > 0 && paymentMethods.length > 0 && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full"
-                            onClick={() => {
-                              // Auto-complete with the most recently used method or card as default
-                              const lastMethod =
-                                paymentMethods[paymentMethods.length - 1]
-                                  ?.type || 'card';
-                              setPaymentMethods((prev) => {
-                                const filtered = prev.filter(
-                                  (p) => p.type !== lastMethod,
-                                );
-                                const lastMethodPayment = prev.find(
-                                  (p) => p.type === lastMethod,
-                                );
-                                const newAmount = lastMethodPayment
-                                  ? lastMethodPayment.amount + remainingBalance
-                                  : remainingBalance;
-                                return [
-                                  ...filtered,
-                                  { type: lastMethod, amount: newAmount },
-                                ];
-                              });
-                            }}
-                          >
-                            Complete with{' '}
-                            {paymentMethods.length > 0
-                              ? paymentMethods[paymentMethods.length - 1]?.type
-                              : 'Card'}{' '}
-                            (${remainingBalance.toFixed(2)})
-                          </Button>
-                        )}
                       </div>
                     )}
 
@@ -1099,9 +1043,9 @@ export default function POSInterface({
                     />
                   </div>
 
-                  {memberSearchTerm && filteredMembers.length > 0 && (
+                  {memberSearchTerm && searchedMembers.length > 0 && (
                     <div className="max-h-32 overflow-auto border rounded-md">
-                      {filteredMembers.map((member) => (
+                      {searchedMembers.map((member) => (
                         <div
                           key={member.id}
                           className="p-2 hover:bg-secondary cursor-pointer border-b last:border-b-0"
@@ -1121,9 +1065,6 @@ export default function POSInterface({
                               </p>
                             </div>
                             <div className="text-right">
-                              <Badge variant="outline" className="mb-1">
-                                {member.membershipLevel}
-                              </Badge>
                               <p className="text-xs">
                                 <Star className="inline h-3 w-3 mr-1" />
                                 {member.points} pts
@@ -1140,9 +1081,6 @@ export default function POSInterface({
                       <div className="flex justify-between items-center mb-2">
                         <div>
                           <p className="font-medium">{selectedMember.name}</p>
-                          <Badge variant="secondary">
-                            {selectedMember.membershipLevel}
-                          </Badge>
                         </div>
                         <Button
                           variant="ghost"

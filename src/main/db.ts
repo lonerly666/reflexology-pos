@@ -45,7 +45,7 @@ function createServices(){
     insertMany(services);
 }
 
-dropTables(); //only use when you want to reset the db
+// dropTables(); //only use when you want to reset the db
 // db.prepare(`DROP TABLE IF EXISTS services;`).run();
 db.exec(
   `
@@ -53,6 +53,7 @@ db.exec(
 CREATE TABLE IF NOT EXISTS transactions (
     id TEXT PRIMARY KEY,          -- assigned by you
     clientId INTEGER,             -- FK → members.id
+    clientName String,
     subtotal REAL NOT NULL,
     discountPercent REAL NOT NULL,
     discountAmount REAL NOT NULL,
@@ -204,7 +205,5 @@ CREATE TABLE IF NOT EXISTS worker_performance_service (
     FOREIGN KEY (serviceId) REFERENCES services(id)
 );`,
 );
-
-createServices();
 
 export default db;

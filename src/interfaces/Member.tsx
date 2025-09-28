@@ -4,5 +4,7 @@ export interface Member {
   email: string;
   phone: string;
   points: number;
-  membershipLevel: 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
+  joinDate: string;
+  totalSpent: number;
+  lastVisit: string;
 }

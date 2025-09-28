@@ -3,11 +3,14 @@ import db from '../main/db';
 
 export function transactionHandlers() {
   ipcMain.handle('db:newTransaction', (event, data) => {
+    const updateMember = db.prepare(
+      `UPDATE members SET points = points - @pointsUsed, lastVisit = @lastVisit, totalSpent = totalSpent + @newSpend WHERE id = @id`,
+    );
     const insertTransaction = db.prepare(`INSERT INTO transactions (
-            id, clientId, subtotal, discountPercent, discountAmount, tax, tipAmount, total,
+            id, clientId, clientName, subtotal, discountPercent, discountAmount, tax, tipAmount, total,
             workerId, workerName, workerCommission, workerCommissionAmount, cashierName, date, companyTake, status, paymentMethod
         ) VALUES (
-            @id, @clientId, @subtotal, @discountPercent, @discountAmount, @tax, @tipAmount, @total,
+            @id, @clientId, @clientName, @subtotal, @discountPercent, @discountAmount, @tax, @tipAmount, @total,
             @workerId, @workerName, @workerCommission, @workerCommissionAmount, @cashierName, @date, @companyTake, @status, @paymentMethod
         )`);
     const insertItem = db.prepare(`INSERT INTO transaction_items (
@@ -29,8 +32,24 @@ export function transactionHandlers() {
         });
       }
     });
+    const updateMemberInfo = db.transaction((info) => {
+      return updateMember.run(info);
+    });
     try {
       transaction(data);
+      if (data.clientId !== null) {
+        const pointsPayment = data.paymentMethods.find((t: any) => {
+          return t.type === 'points';
+        });
+        const pointsUsedAmount = pointsPayment ? pointsPayment.amount : 0;
+        const toDate = new Date().toISOString();
+        updateMemberInfo({
+          id: data.clientId,
+          pointsUsed: pointsUsedAmount,
+          lastVisit: toDate,
+          newSpend: data.total,
+        });
+      }
       return { success: true };
     } catch (error) {
       console.error('Failed to insert transaction:', error);
@@ -67,15 +86,28 @@ export function transactionHandlers() {
     return transaction;
   });
 
-  ipcMain.handle('db:updateStatus', (event, data) => {
+  ipcMain.handle('db:updateTransactionStatus', (event, data) => {
     const stmt = db.prepare(`UPDATE transactions SET status = ? WHERE id = ?`);
-    const info = stmt.run(data.status, data.id);
-    return { changes: info.changes };
+    try {
+      const info = stmt.run(data.status, data.id);
+      return { success: 'true', ...info };
+    } catch (err) {
+      console.log(err);
+      return { success: 'false', err };
+    }
   });
 
   ipcMain.handle('db:updateTransactions', (event, data) => {
+    if (data.clientId === null || data.clientId === undefined) {
+      data.clientId = null;
+    }
+
+    const updateMember = db.prepare(
+      `UPDATE members SET points = points - @pointsUsed, lastVisit = @lastVisit, totalSpent = @newSpend WHERE id = @id`,
+    );
     const updateTransaction = db.prepare(`UPDATE transactions SET
             clientId = @clientId,
+            clientName = @clientName,
             subtotal = @subtotal,
             discountPercent = @discountPercent,
             discountAmount = @discountAmount,
@@ -106,7 +138,7 @@ export function transactionHandlers() {
       for (const item of transactionData.items) {
         insertItem.run({
           transactionId: transactionData.id,
-          serviceId: item.id,
+          serviceId: item.serviceId,
           name: item.name,
           price: item.price,
           quantity: item.quantity,
@@ -114,8 +146,25 @@ export function transactionHandlers() {
         });
       }
     });
+
+    const updateMemberInfo = db.transaction((info) => {
+      return updateMember.run(info);
+    });
     try {
       transaction(data);
+      if (data.status === 'paid') {
+        const pointsPayment = data.paymentMethods.find((t: any) => {
+          return t.type === 'points';
+        });
+        const pointsUsedAmount = pointsPayment ? pointsPayment.amount : 0;
+        const toDate = new Date().toISOString();
+        updateMemberInfo({
+          id: data.clientId,
+          pointsUsed: pointsUsedAmount,
+          lastVisit: toDate,
+          newSpend: data.total,
+        });
+      }
       return { success: true };
     } catch (error) {
       console.error('Failed to update transaction:', error);

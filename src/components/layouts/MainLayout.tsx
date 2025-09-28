@@ -1,12 +1,9 @@
 import { useState } from "react";
 import {
   Users,
-  Calendar,
   ShoppingCart,
   Package,
   FileText,
-  BarChart3,
-  Settings,
   LogOut,
   Menu,
   Clock,
@@ -40,13 +37,13 @@ export default function MainLayout({
     { id: "dashboard", label: "Dashboard", icon: Menu, roles: ["Admin", "Manager", "Cashier"] },
     { id: "pos", label: "Point of Sale", icon: ShoppingCart, roles: ["Admin", "Manager", "Cashier"] },
     { id: "pending", label: "Pending Orders", icon: Clock, roles: ["Admin", "Manager", "Cashier"] },
-    { id: "appointments", label: "Appointments", icon: Calendar, roles: ["Admin", "Manager", "Therapist"] },
+    // { id: "appointments", label: "Appointments", icon: Calendar, roles: ["Admin", "Manager", "Therapist"] },
     { id: "workers", label: "Worker", icon: UserCheck, roles: ["Admin", "Manager", "Cashier", "Therapist"] },
     { id: "clients", label: "Clients", icon: Users, roles: ["Admin", "Manager", "Cashier", "Therapist"] },
-    { id: "inventory", label: "Inventory", icon: Package, roles: ["Admin", "Manager"] },
-    { id: "reports", label: "Reports", icon: BarChart3, roles: ["Admin", "Manager"] },
+    // { id: "inventory", label: "Inventory", icon: Package, roles: ["Admin", "Manager"] },
+    // { id: "reports", label: "Reports", icon: BarChart3, roles: ["Admin", "Manager"] },
     { id: "invoices", label: "Invoices", icon: FileText, roles: ["Admin", "Manager", "Cashier"] },
-    { id: "settings", label: "Settings", icon: Settings, roles: ["Admin", "Manager"] },
+    { id: "services", label: "Services", icon: Package, roles: ["Admin", "Manager"] },
   ];
 
   const filteredMenuItems = menuItems.filter(item => 

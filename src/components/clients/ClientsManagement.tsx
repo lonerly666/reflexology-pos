@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Phone, Mail, Calendar, DollarSign } from 'lucide-react';
+import { Plus, Phone, Mail, Calendar, DollarSign, Search } from 'lucide-react';
 interface Client {
   id: number;
   name: string;
@@ -43,12 +43,15 @@ export default function ClientsManagement() {
   const [isAddClientOpen, setIsAddClientOpen] = useState(false);
   const [amount, setAmount] = useState(0);
   const [isDelete, setIsDelete] = useState(false);
+  const [query, setQuery] = useState('');
   const [newClient, setNewClient] = useState<Partial<Client>>({
     name: '',
     email: '',
     phone: '',
     points: 0,
   });
+
+
 
   useEffect(() => {
     window.api
@@ -89,6 +92,13 @@ export default function ClientsManagement() {
         alert(`Something went wrong: ${err}`);
       });
   };
+
+  const filteredMembers = clients.filter((client) => {
+    const matchesSearch =
+      client.name?.toLowerCase().includes(query.toLowerCase()) ||
+      client.phone.toLowerCase().includes(query.toLowerCase());
+    return matchesSearch;
+  });
 
   const handleAddClient = async () => {
     if (newClient.name && newClient.phone && newClient.points) {
@@ -281,7 +291,7 @@ export default function ClientsManagement() {
                   onChange={(e) =>
                     setNewClient({ ...newClient, phone: e.target.value })
                   }
-                  placeholder="+1 (555) 123-4567"
+                  placeholder="Please enter phone number"
                 />
               </div>
 
@@ -403,6 +413,15 @@ export default function ClientsManagement() {
           <CardDescription>View and manage all your clients</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+            <Input
+              placeholder="Search member..."
+              className="pl-10"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -415,7 +434,7 @@ export default function ClientsManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {clients.map((client) => (
+              {filteredMembers.map((client) => (
                 <TableRow key={client.id}>
                   <TableCell>
                     <div className="flex items-center space-x-3 justify-center">

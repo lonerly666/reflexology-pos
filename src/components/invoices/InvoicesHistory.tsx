@@ -1,13 +1,38 @@
-import { useState, useEffect } from "react";
-import { format, set } from "date-fns";
-import { Search, Printer, Eye, Filter, Calendar, Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ReceiptModal } from "@/components/pos/ReceiptModal";
+import { useState, useEffect } from 'react';
+import { format, set } from 'date-fns';
+import {
+  Search,
+  Printer,
+  EllipsisVertical,
+  Calendar,
+  Download,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { ReceiptModal } from '@/components/pos/ReceiptModal';
 
 interface Transaction {
   id: string;
@@ -33,17 +58,22 @@ interface Transaction {
   tipAmount: number;
   total: number;
   paymentMethod: string;
-  status: "completed" | "refunded" | "voided";
+  status: 'paid' | 'refunded' | 'voided' | 'pending';
 }
 
 export default function InvoicesHistory() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [paymentFilter, setPaymentFilter] = useState("all");
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('paid');
+  const [paymentFilter, setPaymentFilter] = useState('all');
+  const [openDialog, setOpenDialog] = useState(false);
+  const [statusData, setStatusData] = useState({
+    id: '',
+    status: '',
+  });
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<Transaction | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
-
 
   useEffect(() => {
     // Fetch transactions from the database for the last 30 days
@@ -53,35 +83,67 @@ export default function InvoicesHistory() {
       startDate.setDate(endDate.getDate() - 30);
       const data = await window.api.getTransactions({
         startDate: startDate.toISOString(),
-        endDate: endDate.toISOString()
+        endDate: endDate.toISOString(),
       });
+      console.log(data);
       setTransactions(data);
     };
     fetchTransactions();
-  },[]);
+  }, []);
 
-  const filteredTransactions = transactions.filter(transaction => {
-    const matchesSearch = 
+  const filteredTransactions = transactions.filter((transaction) => {
+    const matchesSearch =
       transaction.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      transaction.clientName
+        ?.toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
       transaction.cashierName.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || transaction.status === statusFilter;
-    const matchesPayment = paymentFilter === "all" || transaction.paymentMethod === paymentFilter;
+
+    const matchesStatus =
+      statusFilter === 'all' || transaction.status === statusFilter;
+    const matchesPayment =
+      paymentFilter === 'all' || transaction.paymentMethod === paymentFilter;
     return matchesSearch && matchesStatus && matchesPayment;
   });
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "completed":
-        return <Badge className="bg-success text-success-foreground">Completed</Badge>;
-      case "refunded":
+      case 'completed':
+        return (
+          <Badge className="bg-success text-success-foreground">
+            Completed
+          </Badge>
+        );
+      case 'refunded':
         return <Badge variant="destructive">Refunded</Badge>;
-      case "voided":
+      case 'voided':
         return <Badge variant="secondary">Voided</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
+  };
+
+  const handleUpdateStatus = async () => {
+    await window.api
+      .updateTransactionStatus(statusData)
+      .then((res) => {
+        if (res.success) {
+          setTransactions((prev: any) => {
+            return prev.map((t: any) => {
+              if (t.id === statusData.id) {
+                return { ...t, status: statusData.status };
+              }
+              return t;
+            });
+          });
+          setOpenDialog(false);
+        } else {
+          alert('Something went wrong!');
+        }
+      })
+      .catch((err) => {
+        alert(`Something went wrong: ${err}`);
+      });
   };
 
   const handleViewReceipt = (transaction: Transaction) => {
@@ -90,28 +152,28 @@ export default function InvoicesHistory() {
   };
 
   const exportTransactions = () => {
-    if(filteredTransactions.length === 0) {
-      alert("No transactions to export.");
+    if (filteredTransactions.length === 0) {
+      alert('No transactions to export.');
       return;
     }
-    const csvData = filteredTransactions.map(t => ({
+    const csvData = filteredTransactions.map((t) => ({
       'Transaction ID': t.transactionId,
-      'Date': format(t.date, 'yyyy-MM-dd HH:mm'),
-      'Client': t.clientName || 'Walk-in',
-      'Cashier': t.cashierName,
-      'Items': t.items.length,
-      'Subtotal': t.subtotal,
-      'Discount': t.discountAmount,
-      'Tax': t.tax,
-      'Tip': t.tipAmount,
-      'Total': t.total,
+      Date: format(t.date, 'yyyy-MM-dd HH:mm'),
+      Client: t.clientName || 'Walk-in',
+      Cashier: t.cashierName,
+      Items: t.items.length,
+      Subtotal: t.subtotal,
+      Discount: t.discountAmount,
+      Tax: t.tax,
+      Tip: t.tipAmount,
+      Total: t.total,
       'Payment Method': t.paymentMethod,
-      'Status': t.status
+      Status: t.status,
     }));
 
     const csvContent = [
       Object.keys(csvData[0]).join(','),
-      ...csvData.map(row => Object.values(row).join(','))
+      ...csvData.map((row) => Object.values(row).join(',')),
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -131,13 +193,59 @@ export default function InvoicesHistory() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Transaction History</h1>
-          <p className="text-muted-foreground">View and manage past transactions and receipts</p>
+          <p className="text-muted-foreground">
+            View and manage past transactions and receipts
+          </p>
         </div>
         <Button onClick={exportTransactions} variant="outline">
           <Download className="h-4 w-4 mr-2" />
           Export CSV
         </Button>
       </div>
+      <Dialog
+        open={openDialog}
+        onOpenChange={(e) => {
+          if (!e) {
+            setStatusData({
+              id: '',
+              status: '',
+            });
+          }
+          setOpenDialog(e);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-center">
+              {statusData.status === '' ? 'Choose A Status' : 'Confirm?'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex w-full justify-center space-x-10 p-3">
+            <Button
+              className="w-full"
+              variant={statusData.status === '' ? 'outline' : 'destructive'}
+              onClick={() => {
+                statusData.status === ''
+                  ? setStatusData({ ...statusData, status: 'refunded' })
+                  : handleUpdateStatus();
+              }}
+            >
+              {statusData.status === '' ? 'Refund' : 'Yes'}
+            </Button>
+            <Button
+              className="w-full"
+              variant={statusData.status === '' ? 'outline' : 'active'}
+              onClick={() => {
+                statusData.status === ''
+                  ? setStatusData({ ...statusData, status: 'voided' })
+                  : setStatusData({ ...statusData, status: '' });
+              }}
+            >
+              {statusData.status === '' ? 'Void' : 'No'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Filters */}
       <Card>
@@ -155,16 +263,17 @@ export default function InvoicesHistory() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="refunded">Refunded</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="voided">Voided</SelectItem>
+                <SelectItem value="refunded">Refunded</SelectItem>
               </SelectContent>
             </Select>
 
@@ -190,9 +299,7 @@ export default function InvoicesHistory() {
       {/* Transactions Table */}
       <Card>
         <CardHeader>
-          <CardTitle>
-            Transactions History
-          </CardTitle>
+          <CardTitle>Transactions History</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
@@ -234,7 +341,8 @@ export default function InvoicesHistory() {
                       <div className="text-sm">
                         <div>{transaction.workerName}</div>
                         <div className="text-muted-foreground text-xs">
-                          {transaction.workerCommission}% • ${transaction.workerCommissionAmount?.toFixed(2)}
+                          {transaction.workerCommission}% • $
+                          {transaction.workerCommissionAmount?.toFixed(2)}
                         </div>
                       </div>
                     ) : (
@@ -244,7 +352,8 @@ export default function InvoicesHistory() {
                   <TableCell>{transaction.cashierName}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">
-                      {transaction.items.length} item{transaction.items.length !== 1 ? 's' : ''}
+                      {transaction.items.length} item
+                      {transaction.items.length !== 1 ? 's' : ''}
                     </Badge>
                   </TableCell>
                   <TableCell className="font-semibold">
@@ -255,18 +364,24 @@ export default function InvoicesHistory() {
                       {transaction.paymentMethod}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    {getStatusBadge(transaction.status)}
-                  </TableCell>
+                  <TableCell>{getStatusBadge(transaction.status)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2 justify-center">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleViewReceipt(transaction)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
+                      {transaction.status === 'paid' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setStatusData({
+                              ...statusData,
+                              id: transaction.id,
+                            });
+                            setOpenDialog(true);
+                          }}
+                        >
+                          <EllipsisVertical />
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
