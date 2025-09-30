@@ -47,7 +47,7 @@ export function membersHandler() {
       }
     } else {
       const update = db.prepare(
-        `UPDATE members SET name = @name, phone = @phone, email = @email, lastVisit = @lastVisit, totalSpent=@totalSpent`,
+        `UPDATE members SET name = @name, phone = @phone, email = @email, lastVisit = @lastVisit, totalSpent=@totalSpent WHERE id = @id`,
       );
       try {
         const info = update.run(data);

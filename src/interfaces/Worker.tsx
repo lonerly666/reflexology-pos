@@ -1,6 +1,9 @@
 export interface Worker {
-  id: string;
+  id: number;
   name: string;
   commission: number;
-  status: 'available' | 'busy' | 'break';
+  joinDate: string;
+  totalEarnings: number;
+  totalTransactions: number;
+  workDuration: number;
 }

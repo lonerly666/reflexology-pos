@@ -19,6 +19,10 @@ export function transactionHandlers() {
             @transactionId, @serviceId, @name, @price, @quantity, @duration
         )`);
 
+    const updateWorkerPerformance = db.prepare(
+      `UPDATE workers SET totalEarnings = totalEarnings + @newEarning, totalTransactions = totalTransactions + 1 WHERE id = @workerId`,
+    );
+
     const transaction = db.transaction((transactionData) => {
       insertTransaction.run(transactionData);
       for (const item of transactionData.items) {
@@ -37,6 +41,12 @@ export function transactionHandlers() {
     });
     try {
       transaction(data);
+      const workerPerformanceData = {
+        workerId: data.workerId,
+        newEarning: data.workerCommissionAmount,
+      };
+      console.log(workerPerformanceData);
+      updateWorkerPerformance.run(workerPerformanceData);
       if (data.clientId !== null) {
         const pointsPayment = data.paymentMethods.find((t: any) => {
           return t.type === 'points';
@@ -146,6 +156,9 @@ export function transactionHandlers() {
         });
       }
     });
+    const updateWorkerPerformance = db.prepare(
+      `UPDATE workers SET totalEarnings = totalEarnings + @newEarning, totalTransactions = totalTransactions + 1, workDuration = workDuration + @newDuration WHERE workerId = @workerId`,
+    );
 
     const updateMemberInfo = db.transaction((info) => {
       return updateMember.run(info);
@@ -164,6 +177,12 @@ export function transactionHandlers() {
           lastVisit: toDate,
           newSpend: data.total,
         });
+        const workerPerformanceData = {
+          workerId: data.workerId,
+          newEarning: data.workerCommissionAmount,
+          newDuration: data.workDuration,
+        };
+        updateWorkerPerformance.run(workerPerformanceData);
       }
       return { success: true };
     } catch (error) {
@@ -197,5 +216,28 @@ export function transactionHandlers() {
     );
     const info = deleteTransactionStmt.run(id);
     return { changes: info.changes };
+  });
+
+  ipcMain.handle('db:getWorkerTransactions', (event, data) => {
+    const stmt = db.prepare(`
+            SELECT workerCommissionAmount, workerId FROM transactions WHERE date BETWEEN ? AND ? WHERE workerId = ?
+        `);
+
+    const getItemsStmt = db.prepare(
+      `SELECT * FROM transaction_items WHERE transactionId = ?`,
+    );
+    try {
+      const transactions = stmt.all(
+        data.start,
+        data.end,
+        data.workerId,
+      ) as any[];
+      for (const transaction of transactions) {
+        transaction.items = getItemsStmt.all(transaction.id);
+      }
+      return { success: 'true', transactions };
+    } catch (err) {
+      return { success: 'false', err };
+    }
   });
 }

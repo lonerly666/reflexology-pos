@@ -382,13 +382,15 @@ export default function InvoicesHistory() {
                           <EllipsisVertical />
                         </Button>
                       )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleViewReceipt(transaction)}
-                      >
-                        <Printer className="h-4 w-4" />
-                      </Button>
+                      {transaction.status !== 'pending' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleViewReceipt(transaction)}
+                        >
+                          <Printer className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

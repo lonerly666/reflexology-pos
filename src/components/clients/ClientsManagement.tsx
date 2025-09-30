@@ -51,8 +51,6 @@ export default function ClientsManagement() {
     points: 0,
   });
 
-
-
   useEffect(() => {
     window.api
       .getMembers()
@@ -102,8 +100,8 @@ export default function ClientsManagement() {
 
   const handleAddClient = async () => {
     if (newClient.name && newClient.phone && newClient.points) {
-      const client: Client = {
-        id: newClient.id ? newClient.id : -1,
+      const client = {
+        id: -1,
         name: newClient.name!,
         email: newClient.email!,
         phone: newClient.phone!,
@@ -116,6 +114,7 @@ export default function ClientsManagement() {
         .addMember(client)
         .then((res) => {
           console.log('New Member Added!', res);
+          client.id = res.info.lastInsertRowid;
           setClients([...clients, client]);
           resetNewClientState();
           setIsAddClientOpen(false);
@@ -136,6 +135,7 @@ export default function ClientsManagement() {
             if (t.id === newClient.id) {
               return newClient;
             }
+            return t;
           });
         });
         resetNewClientState();
@@ -161,6 +161,7 @@ export default function ClientsManagement() {
             if (t.id === newClient.id) {
               return { ...t, points: totalBalance };
             }
+            return t;
           });
         });
         setAmount(0);

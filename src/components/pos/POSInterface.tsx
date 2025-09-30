@@ -40,39 +40,6 @@ interface POSInterfaceProps {
   onTransactionSaved?: (data: any) => void;
 }
 
-const MOCK_WORKERS: Worker[] = [
-  {
-    id: '1',
-    name: 'Alice Chen',
-    commission: 45,
-    status: 'available',
-  },
-  {
-    id: '2',
-    name: 'Bob Martinez',
-    commission: 50,
-    status: 'available',
-  },
-  {
-    id: '3',
-    name: 'Carol Kim',
-    commission: 40,
-    status: 'busy',
-  },
-  {
-    id: '4',
-    name: 'David Park',
-    commission: 48,
-    status: 'available',
-  },
-  {
-    id: '5',
-    name: 'Emma Rodriguez',
-    commission: 42,
-    status: 'break',
-  },
-];
-
 export default function POSInterface({
   editingTransaction,
   onTransactionSaved,
@@ -98,6 +65,24 @@ export default function POSInterface({
   const [workerSearchTerm, setWorkerSearchTerm] = useState('');
   const [services, setServices] = useState<Service[]>([]);
   const [searchedMembers, setSearchMembers] = useState<Member[]>([]);
+  const [workers, setWorkers] = useState<Worker[]>([]);
+
+  useEffect(() => {
+    const fetchWorkers = async () => {
+      await window.api
+        .getWorkers()
+        .then((res) => {
+          if (res.success) {
+            setWorkers(res.workerInfo);
+          }
+        })
+        .catch((err) => {
+          alert(`Something went wrong: ${err}`);
+        });
+    };
+
+    fetchWorkers();
+  }, []);
 
   useEffect(() => {
     const searchMember = async (query: any) => {
@@ -150,7 +135,7 @@ export default function POSInterface({
     return matchesSearch && matchesCategory;
   });
 
-  const filteredWorkers = MOCK_WORKERS.filter((worker) =>
+  const filteredWorkers = workers.filter((worker) =>
     worker.name.toLowerCase().includes(workerSearchTerm.toLowerCase()),
   );
 
@@ -221,7 +206,7 @@ export default function POSInterface({
       setDiscountPercent(editingTransaction.discountPercent);
       setClientName(editingTransaction.clientName || '');
       setSelectedWorker(
-        MOCK_WORKERS.find((w) => w.id === editingTransaction.workerId) || null,
+        workers.find((w) => w.id === editingTransaction.workerId) || null,
       );
       setNotes(editingTransaction.notes || '');
     }
@@ -982,19 +967,6 @@ export default function POSInterface({
                               <p className="text-xs text-muted-foreground">
                                 Commission: {worker.commission}%
                               </p>
-                            </div>
-                            <div className="text-right">
-                              <Badge
-                                variant={
-                                  worker.status === 'available'
-                                    ? 'secondary'
-                                    : worker.status === 'busy'
-                                      ? 'destructive'
-                                      : 'outline'
-                                }
-                              >
-                                {worker.status}
-                              </Badge>
                             </div>
                           </div>
                         </div>

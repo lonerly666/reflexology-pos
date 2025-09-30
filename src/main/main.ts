@@ -17,8 +17,8 @@ import { resolveHtmlPath } from './util';
 import db from './db';
 import { transactionHandlers } from '../ipc/transactionDb';
 import { servicesHandlers } from '../ipc/servicesDb';
-import {membersHandler} from '../ipc/membersDb';
-
+import { membersHandler } from '../ipc/membersDb';
+import { workersHandler } from '@/ipc/workersDb';
 
 class AppUpdater {
   constructor() {
@@ -29,7 +29,6 @@ class AppUpdater {
 }
 
 let mainWindow: BrowserWindow | null = null;
-
 
 ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
@@ -136,6 +135,7 @@ app
     membersHandler();
     servicesHandlers();
     transactionHandlers();
+    workersHandler();
     createWindow();
     app.on('activate', () => {
       // On macOS it's common to re-create a window in the app when the

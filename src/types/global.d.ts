@@ -10,6 +10,7 @@ declare global {
       deletePendingTransaction: (id: string) => Promise<{ changes: number }>;
       getTransactionById: (id: string) => Promise<any | null>;
       updateTransactionStatus: (data: any) => Promise<any>;
+      getWorkerTransactions: (data: any) => Promise<any[]>;
 
       //services
       getServices: () => Promise<any[]>;
@@ -23,6 +24,14 @@ declare global {
       deleteMember: (id: number) => Promise<{ success: boolean }>;
       updateMember: (data: any) => Promise<{ changes: number }>;
       searchMember: (data: any) => Promise<any>;
+
+      //workers
+      addWorker: (data: any) => Promise<any>;
+      searchWorker: (data: any) => Promise<any[]>;
+      getWorkers: () => Promise<any>;
+      updateWorker: (data: any) => Promise<any>;
+      deleteWorker: (data: any) => Promise<any>;
+      getWorkerPerformanceById: (data: any) => Promise<any>;
       // add more APIs here, e.g.
       // getSales: () => Promise<Sale[]>;
       // login: (username: string, password: string) => Promise<User | null>;
