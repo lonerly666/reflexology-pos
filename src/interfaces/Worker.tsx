@@ -3,7 +3,8 @@ export interface Worker {
   name: string;
   commission: number;
   joinDate: string;
-  totalEarnings: number;
+  totalGrossEarnings: number;
+  totalActualEarnings:number;
   totalTransactions: number;
-  workDuration: number;
+  totalWorkDuration: number;
 }

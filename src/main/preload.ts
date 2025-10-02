@@ -39,7 +39,8 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('db:deletePendingTransaction', id),
   updateTransactions: (data: any) =>
     ipcRenderer.invoke('db:updateTransactions', data),
-  getWorkerTransactions: (data:any)=>ipcRenderer.invoke('db:getWorkerTransactions',data),
+  getWorkerTransactions: (data: any) =>
+    ipcRenderer.invoke('db:getWorkerTransactions', data),
 
   //services
   getServices: () => ipcRenderer.invoke('db:getServices'),
@@ -57,6 +58,8 @@ contextBridge.exposeInMainWorld('api', {
 
   //workers
   getWorkers: () => ipcRenderer.invoke('db:getWorkers'),
+  getWorkersByDate: (data: any) =>
+    ipcRenderer.invoke('db:getWorkersByDate', data),
   addWorker: (worker: any) => ipcRenderer.invoke('db:addWorker', worker),
   updateWorker: (worker: any) => ipcRenderer.invoke('db:updateWorker', worker),
   deleteWorker: (id: any) => ipcRenderer.invoke('db:deleteWorker', id),

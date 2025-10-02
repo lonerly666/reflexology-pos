@@ -990,11 +990,6 @@ export default function POSInterface({
                           RM
                           {(
                             total * (selectedWorker.commission / 100) || 0
-                          ).toFixed(2)}{' '}
-                          - RM{AMOUNT_PER_SERVICE * serviceCount} = RM
-                          {(
-                            total * (selectedWorker.commission / 100) -
-                              AMOUNT_PER_SERVICE * serviceCount || 0
                           ).toFixed(2)}
                         </span>
                       </div>

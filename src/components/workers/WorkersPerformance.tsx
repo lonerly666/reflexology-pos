@@ -6,14 +6,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -28,10 +20,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { User, DollarSign, TrendingUp, Clock, Star } from 'lucide-react';
+import { Clock, MoveLeft } from 'lucide-react';
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   XAxis,
@@ -39,54 +29,85 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
 } from 'recharts';
 import { Worker } from '@/interfaces/Worker';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
+import { DatePicker, Space } from 'antd';
+import dayjs, { Dayjs } from 'dayjs';
 
-const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff88'];
+const { RangePicker } = DatePicker;
+
+import SelectedWorkerData from './SelectedWorkerData';
 
 export default function WorkersPerformance() {
-  const [selectedWorker, setSelectedWorker] = useState<string>('all');
-  const [timeRange, setTimeRange] = useState<string>('weekly');
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
+  const [dateRange, setDateRange] = useState<any>([]);
   const [isDelete, setIsDelete] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
+  const [selectedWorkerData, setSelectedWorkerData] = useState<Worker>();
   const [newWorker, setNewWorker] = useState({
     id: -1,
     name: '',
     commission: 0,
     joinDate: '',
-    totalEarnings: 0,
     totalTransactions: 0,
-    workDuration: 0,
+    totalGrossEarnings: 0,
+    totalActualEarnings: 0,
+    totalWorkDuration: 0,
   });
 
   useEffect(() => {
-    const fetchWorkers = async () => {
+    setDateRange(getCurrentMonthDateRange());
+  }, []);
+
+  useEffect(() => {
+    const fetchWorkers = async (date: any) => {
       await window.api
-        .getWorkers()
+        .getWorkersByDate({
+          startDate: date[0].toISOString(),
+          endDate: date[1].toISOString(),
+        })
         .then((res: any) => {
           console.log(res);
-          setWorkers(res.workerInfo);
+          setWorkers(res.info);
+          if (selectedWorkerData) {
+            setSelectedWorkerData(
+              res.info.find((t: any) => t.id === selectedWorkerData.id),
+            );
+          }
         })
         .catch((err) => {
           console.log(err);
           return { success: 'false', err };
         });
     };
-    fetchWorkers();
-  }, []);
+    if (dateRange.length == 2) {
+      fetchWorkers(dateRange);
+    }
+  }, [dateRange]);
 
-  const formatCurrency = (amount: number) => `RM${amount.toFixed(2)}`;
-  const formatData = (data: any) => {
-    return Array.from(data.values());
+  const getCurrentMonthDateRange = () => {
+    // Current date: October 2, 2025
+    const today = new Date();
+
+    // 1. Calculate the START Date (First day of the current month at 00:00:00)
+    // We set the day to 1, keeping the current year and month.
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    firstDayOfMonth.setHours(0, 0, 0, 0); // Set to midnight
+
+    // 2. Calculate the END Date (The current time)
+    // For "current month," we usually want transactions up to the current moment.
+    const currentMoment = new Date();
+
+    return [firstDayOfMonth, currentMoment];
   };
+  const convertDayJsFormat = (data: any) => {
+    return [dayjs(data[0]), dayjs(data[1])];
+  };
+  const formatCurrency = (amount: number) => `RM${amount.toFixed(2)}`;
   const formatDate = (data: any) => {
     const date = new Date(data);
     const day = String(date.getDate()).padStart(2, '0');
@@ -104,9 +125,6 @@ export default function WorkersPerformance() {
       name: newWorker.name,
       commission: newWorker.commission,
       joinDate: newWorker.joinDate,
-      totalEarnings: newWorker.totalEarnings,
-      totalTransactions: newWorker.totalTransactions,
-      workDuration: newWorker.workDuration,
     };
     if (type === 'update') {
       await window.api
@@ -116,7 +134,7 @@ export default function WorkersPerformance() {
             setWorkers((prev: any) => {
               return prev.map((t: any) => {
                 if (Number(t.id) === worker.id) {
-                  return worker;
+                  return { ...t, ...worker };
                 }
                 return t;
               });
@@ -139,7 +157,16 @@ export default function WorkersPerformance() {
           if (res.success) {
             worker.id = res.info.lastInsertRowid;
             console.log(worker);
-            setWorkers([...workers, worker]);
+            setWorkers([
+              ...workers,
+              {
+                ...worker,
+                totalActualEarnings: 0,
+                totalGrossEarnings: 0,
+                totalTransactions: 0,
+                totalWorkDuration: 0,
+              },
+            ]);
             setOpenDialog(false);
             resetNewWorker();
           } else {
@@ -158,245 +185,270 @@ export default function WorkersPerformance() {
       name: '',
       commission: 0,
       joinDate: '',
-      totalEarnings: 0,
+      totalActualEarnings: 0,
+      totalGrossEarnings: 0,
+      totalWorkDuration: 0,
       totalTransactions: 0,
-      workDuration: 0,
     });
   };
 
   return (
-    <div className="space-y-6">
-      <Dialog
-        open={openDialog}
-        onOpenChange={(e) => {
-          if (!e) {
-            resetNewWorker();
-            setIsEdit(false);
-            setIsDelete(false);
-          }
-          setOpenDialog(e);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {isDelete
-                ? 'Are you sure?'
-                : isEdit
-                  ? 'Edit Worker'
-                  : 'Add New Worker'}
-            </DialogTitle>
-          </DialogHeader>
-          {isDelete ? (
-            <div className="flex gap-4 p-4">
-              <Button
-                variant={'destructive'}
-                className="w-full"
-                onClick={() => {
-                  // handleDelete(newService.id);
-                }}
-              >
-                {' '}
-                Yes{' '}
-              </Button>
-              <Button
-                className="w-full"
-                variant={'default'}
-                onClick={() => {
-                  setOpenDialog(false);
-                  setIsDelete(false);
-                }}
-              >
-                {' '}
-                No{' '}
-              </Button>
-            </div>
-          ) : (
-            <div>
-              <div className="p-4 grid gap-4">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={newWorker.name || ''}
-                  onChange={(e) => {
-                    setNewWorker({ ...newWorker, name: e.target.value });
+    <>
+      <div className="space-y-6">
+        <Dialog
+          open={openDialog}
+          onOpenChange={(e) => {
+            if (!e) {
+              resetNewWorker();
+              setIsEdit(false);
+              setIsDelete(false);
+            }
+            setOpenDialog(e);
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {isDelete
+                  ? 'Are you sure?'
+                  : isEdit
+                    ? 'Edit Worker'
+                    : 'Add New Worker'}
+              </DialogTitle>
+            </DialogHeader>
+            {isDelete ? (
+              <div className="flex gap-4 p-4">
+                <Button
+                  variant={'destructive'}
+                  className="w-full"
+                  onClick={() => {
+                    // handleDelete(newService.id);
                   }}
-                  placeholder="Enter Service Name"
-                />
-              </div>
-              <div className="p-4 grid gap-4">
-                <Label htmlFor="commission">Commission (%)</Label>
-                <Input
-                  id="commission"
-                  value={newWorker.commission || ''}
-                  type="number"
-                  min={0}
-                  placeholder="Enter worker's commission"
-                  onChange={(e) => {
-                    setNewWorker({
-                      ...newWorker,
-                      commission: Number(e.target.value),
-                    });
+                >
+                  {' '}
+                  Yes{' '}
+                </Button>
+                <Button
+                  className="w-full"
+                  variant={'default'}
+                  onClick={() => {
+                    setOpenDialog(false);
+                    setIsDelete(false);
                   }}
-                />
+                >
+                  {' '}
+                  No{' '}
+                </Button>
               </div>
-              <Button
-                onClick={() => {
-                  handleSubmit(isEdit ? 'update' : 'create');
-                }}
-                className="w-full mt-10"
-                variant={isEdit ? 'default' : 'active'}
-              >
-                {isEdit ? 'Update' : 'Submit'}
+            ) : (
+              <div>
+                <div className="p-4 grid gap-4">
+                  <Label htmlFor="name">Name</Label>
+                  <Input
+                    id="name"
+                    value={newWorker.name || ''}
+                    onChange={(e) => {
+                      setNewWorker({ ...newWorker, name: e.target.value });
+                    }}
+                    placeholder="Enter Service Name"
+                  />
+                </div>
+                <div className="p-4 grid gap-4">
+                  <Label htmlFor="commission">Commission (%)</Label>
+                  <Input
+                    id="commission"
+                    value={newWorker.commission || ''}
+                    type="number"
+                    min={0}
+                    placeholder="Enter worker's commission"
+                    onChange={(e) => {
+                      setNewWorker({
+                        ...newWorker,
+                        commission: Number(e.target.value),
+                      });
+                    }}
+                  />
+                </div>
+                <Button
+                  onClick={() => {
+                    handleSubmit(isEdit ? 'update' : 'create');
+                  }}
+                  className="w-full mt-10"
+                  variant={isEdit ? 'default' : 'active'}
+                >
+                  {isEdit ? 'Update' : 'Submit'}
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+        <div
+          className={`grid grid-cols-${selectedWorkerData ? '3' : '2'} gap-40`}
+        >
+          {selectedWorkerData && (
+            <div className="flex justify-center items-center">
+              <Button className="w-1/2 h-[90%]" onClick={()=>setSelectedWorkerData(undefined)}>
+                <MoveLeft />
+                Back
               </Button>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Workers Performance</h1>
-          <p className="text-muted-foreground">
-            Track worker performance, earnings, and KPIs
-          </p>
+          <div
+            className={`text-${selectedWorkerData ? 'center' : 'left'}`}
+          >
+            <h1 className="text-2xl font-bold">Workers Performance</h1>
+            <p className="text-muted-foreground">
+              Track worker performance, earnings, and KPIs
+            </p>
+          </div>
+          <div className="flex justify-end items-center">
+            <RangePicker
+              className="h-[90%]"
+              value={convertDayJsFormat(dateRange) as [Dayjs, Dayjs]}
+              onCalendarChange={(e) => {
+                setDateRange([e[0], e[1]]);
+              }}
+            />
+          </div>
         </div>
-        <div className="flex gap-4">
-          <Select value={selectedWorker} onValueChange={setSelectedWorker}>
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Workers Overview</SelectItem>
-              {workers.map((worker) => (
-                <SelectItem key={worker.id} value={String(worker.id)}>
-                  {worker.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="weekly">Weekly</SelectItem>
-              <SelectItem value="monthly">Monthly</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <Card className="relative">
-        <Button
-          onClick={() => setOpenDialog(true)}
-          variant={'active'}
-          className="absolute top-5 right-6"
-        >
-          Add New Worker
-        </Button>
-        <CardHeader>
-          <CardTitle>Worker Directory</CardTitle>
-          <CardDescription>View and manage all your workers</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Worker</TableHead>
-                <TableHead>Join Date</TableHead>
-                <TableHead>Total Earning</TableHead>
-                <TableHead>Commission</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {workers.map((worker) => (
-                <TableRow key={worker.id}>
-                  <TableCell>
-                    <div className="flex items-center space-x-3 justify-center">
-                      <div>
-                        <div className="font-medium">{worker.name}</div>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      {formatDate(worker.joinDate)}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm text-muted-foreground">
-                      RM {worker.totalEarnings}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm text-muted-foreground">
-                      {worker.commission}%
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex space-x-2 justify-center">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setIsEdit(true);
-                          setOpenDialog(true);
-                          setNewWorker({
-                            id: worker.id,
-                            name: worker.name,
-                            commission: worker.commission,
-                            joinDate: worker.joinDate,
-                            totalEarnings: worker.totalEarnings,
-                            totalTransactions: worker.totalTransactions,
-                            workDuration: worker.workDuration
-                          });
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        View Details
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {workers.length === 0 && (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Clock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-xl font-semibold mb-2">
-                  No Workers Available
-                </h3>
-                <p className="text-muted-foreground">Please add new workers</p>
+        {selectedWorkerData ? (
+          <SelectedWorkerData selectedWorkerData={selectedWorkerData} />
+        ) : (
+          <>
+            <Card className="relative">
+              <Button
+                onClick={() => setOpenDialog(true)}
+                variant={'active'}
+                className="absolute top-5 right-6"
+              >
+                Add New Worker
+              </Button>
+              <CardHeader>
+                <CardTitle>Worker Directory</CardTitle>
+                <CardDescription>
+                  View and manage all your workers
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Worker</TableHead>
+                      <TableHead>Join Date</TableHead>
+                      <TableHead>Total Sales</TableHead>
+                      <TableHead>Total Earning</TableHead>
+                      <TableHead>Commission</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {workers.map((worker) => (
+                      <TableRow key={worker.id}>
+                        <TableCell>
+                          <div className="flex items-center space-x-3 justify-center">
+                            <div>
+                              <div className="font-medium">{worker.name}</div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            {formatDate(worker.joinDate)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm text-muted-foreground">
+                            {formatCurrency(worker.totalGrossEarnings)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm text-muted-foreground">
+                            {formatCurrency(worker.totalActualEarnings)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm text-muted-foreground">
+                            {worker.commission}%
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2 justify-center">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setIsEdit(true);
+                                setOpenDialog(true);
+                                setNewWorker({
+                                  id: worker.id,
+                                  name: worker.name,
+                                  commission: worker.commission,
+                                  joinDate: worker.joinDate,
+                                  totalGrossEarnings: worker.totalGrossEarnings,
+                                  totalTransactions: worker.totalTransactions,
+                                  totalWorkDuration: worker.totalWorkDuration,
+                                  totalActualEarnings:
+                                    worker.totalActualEarnings,
+                                });
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                console.log(worker);
+                                setSelectedWorkerData(worker);
+                              }}
+                            >
+                              View Details
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {workers.length === 0 && (
+                  <Card>
+                    <CardContent className="py-12 text-center">
+                      <Clock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                      <h3 className="text-xl font-semibold mb-2">
+                        No Workers Available
+                      </h3>
+                      <p className="text-muted-foreground">
+                        Please add new workers
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
               </CardContent>
             </Card>
-          )}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Team Earnings Comparison</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={workers}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip
-                formatter={(value) => [
-                  formatCurrency(Number(value)),
-                  'Earnings',
-                ]}
-              />
-              <Bar dataKey="totalEarnings" fill="#8884d8" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-    </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Team Earnings Comparison</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={workers}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip
+                      formatter={(value) => [
+                        formatCurrency(Number(value)),
+                        'Earnings',
+                      ]}
+                    />
+                    <Bar dataKey="totalActualEarnings" fill="#8884d8" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
+    </>
   );
 }

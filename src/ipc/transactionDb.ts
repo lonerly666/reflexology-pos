@@ -19,10 +19,6 @@ export function transactionHandlers() {
             @transactionId, @serviceId, @name, @price, @quantity, @duration
         )`);
 
-    const updateWorkerPerformance = db.prepare(
-      `UPDATE workers SET totalEarnings = totalEarnings + @newEarning, totalTransactions = totalTransactions + 1 WHERE id = @workerId`,
-    );
-
     const transaction = db.transaction((transactionData) => {
       insertTransaction.run(transactionData);
       for (const item of transactionData.items) {
@@ -41,12 +37,6 @@ export function transactionHandlers() {
     });
     try {
       transaction(data);
-      const workerPerformanceData = {
-        workerId: data.workerId,
-        newEarning: data.workerCommissionAmount,
-      };
-      console.log(workerPerformanceData);
-      updateWorkerPerformance.run(workerPerformanceData);
       if (data.clientId !== null) {
         const pointsPayment = data.paymentMethods.find((t: any) => {
           return t.type === 'points';
@@ -98,7 +88,21 @@ export function transactionHandlers() {
 
   ipcMain.handle('db:updateTransactionStatus', (event, data) => {
     const stmt = db.prepare(`UPDATE transactions SET status = ? WHERE id = ?`);
+    const revertMemberData = db.prepare(
+      `UPDATE members SET points = points + @pointsUsed, totalSpent = totalSpent - @total WHERE id = @id`,
+    );
     try {
+      console.log(data);
+      let totalDuration = 0;
+      for (const item of data.items) {
+        totalDuration += item.duration;
+      }
+      const revertData = {
+        prevAmount: data.workerCommissionAmount,
+        prevDuration: totalDuration,
+        workerId: data.workerId,
+      };
+
       const info = stmt.run(data.status, data.id);
       return { success: 'true', ...info };
     } catch (err) {
@@ -111,7 +115,7 @@ export function transactionHandlers() {
     if (data.clientId === null || data.clientId === undefined) {
       data.clientId = null;
     }
-
+    console.log(data);
     const updateMember = db.prepare(
       `UPDATE members SET points = points - @pointsUsed, lastVisit = @lastVisit, totalSpent = @newSpend WHERE id = @id`,
     );
@@ -156,10 +160,10 @@ export function transactionHandlers() {
         });
       }
     });
-    const updateWorkerPerformance = db.prepare(
-      `UPDATE workers SET totalEarnings = totalEarnings + @newEarning, totalTransactions = totalTransactions + 1, workDuration = workDuration + @newDuration WHERE workerId = @workerId`,
-    );
-
+    let totalDuration = 0;
+    for (const item of data.items) {
+      totalDuration += item.duration;
+    }
     const updateMemberInfo = db.transaction((info) => {
       return updateMember.run(info);
     });
@@ -177,12 +181,6 @@ export function transactionHandlers() {
           lastVisit: toDate,
           newSpend: data.total,
         });
-        const workerPerformanceData = {
-          workerId: data.workerId,
-          newEarning: data.workerCommissionAmount,
-          newDuration: data.workDuration,
-        };
-        updateWorkerPerformance.run(workerPerformanceData);
       }
       return { success: true };
     } catch (error) {
@@ -220,7 +218,7 @@ export function transactionHandlers() {
 
   ipcMain.handle('db:getWorkerTransactions', (event, data) => {
     const stmt = db.prepare(`
-            SELECT workerCommissionAmount, workerId FROM transactions WHERE date BETWEEN ? AND ? WHERE workerId = ?
+            SELECT id, date, workerCommissionAmount, workerId FROM transactions WHERE date BETWEEN ? AND ? AND workerId = ? AND status = 'paid';
         `);
 
     const getItemsStmt = db.prepare(
@@ -235,6 +233,7 @@ export function transactionHandlers() {
       for (const transaction of transactions) {
         transaction.items = getItemsStmt.all(transaction.id);
       }
+      console.log(transactions);
       return { success: 'true', transactions };
     } catch (err) {
       return { success: 'false', err };

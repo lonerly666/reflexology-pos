@@ -124,8 +124,9 @@ export default function InvoicesHistory() {
   };
 
   const handleUpdateStatus = async () => {
+    
     await window.api
-      .updateTransactionStatus(statusData)
+      .updateTransactionStatus({...selectedTransaction, status: statusData.status})
       .then((res) => {
         if (res.success) {
           setTransactions((prev: any) => {
@@ -137,6 +138,14 @@ export default function InvoicesHistory() {
             });
           });
           setOpenDialog(false);
+          setStatusData({
+            id: '',
+            status: '',
+          });
+          setSelectedTransaction({
+            startDate: '',
+            endDate: '',
+          });
         } else {
           alert('Something went wrong!');
         }
@@ -376,6 +385,7 @@ export default function InvoicesHistory() {
                               ...statusData,
                               id: transaction.id,
                             });
+                            setSelectedTransaction({ ...transaction });
                             setOpenDialog(true);
                           }}
                         >

@@ -29,6 +29,7 @@ declare global {
       addWorker: (data: any) => Promise<any>;
       searchWorker: (data: any) => Promise<any[]>;
       getWorkers: () => Promise<any>;
+      getWorkersByDate: (data: any) => Promise<any>;
       updateWorker: (data: any) => Promise<any>;
       deleteWorker: (data: any) => Promise<any>;
       getWorkerPerformanceById: (data: any) => Promise<any>;
